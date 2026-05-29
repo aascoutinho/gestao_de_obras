@@ -1,4 +1,3 @@
-
 import { Project, Team, RDOData } from '../types';
 
 export const MOCK_PROJECTS: Project[] = [

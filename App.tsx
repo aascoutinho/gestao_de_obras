@@ -22,7 +22,7 @@ import { RDOList } from './components/RDOList';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { ProjectServices } from './components/ProjectServices';
 import { RDODetail } from './components/RDODetail';
-import { ProductionAnalysis } from './components/ProductionAnalysis';
+import { ProductionPriceTable } from './components/ProductionPriceTable';
 import { HistogramAnalysis } from './components/HistogramAnalysis';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
@@ -504,7 +504,7 @@ function App() {
             }`}
           >
             <BarChart2 className="w-5 h-5" />
-            <span className="font-semibold text-sm">Análise de Produção</span>
+            <span className="font-semibold text-sm">Produção / Preços</span>
           </button>
 
           <button
@@ -642,6 +642,7 @@ function App() {
 
     const availableRegionals = Array.from(new Set(projects.map(p => p.regional || 'Sem Regional').filter(Boolean)));
     const availableProjects = projects.filter(p => filterRegional === 'all' || (p.regional || 'Sem Regional') === filterRegional);
+    const filteredProjectsToPass = availableProjects.filter(p => filterProject === 'all' || p.id === filterProject);
 
     return (
       <div className="animate-fade-in space-y-8">
@@ -722,7 +723,7 @@ function App() {
           </p>
         </div>
 
-        <FinancialTable filteredRdos={filteredRdos} projects={projects} teams={teams} />
+        <FinancialTable filteredRdos={filteredRdos} projects={filteredProjectsToPass} teams={teams} />
       </div>
     );
   };
@@ -896,21 +897,14 @@ function App() {
              </>
             )}
             {activeMenu === 'ANALYSIS' && (
-              <ProductionAnalysis 
+              <ProductionPriceTable 
                 projects={projects} 
                 rdos={rdos} 
                 teams={teams} 
-                filterStartDate={filterStartDate} 
-                setFilterStartDate={setFilterStartDate} 
-                filterEndDate={filterEndDate} 
-                setFilterEndDate={setFilterEndDate} 
                 filterRegional={filterRegional} 
                 setFilterRegional={setFilterRegional} 
                 filterProject={filterProject}
                 setFilterProject={setFilterProject}
-                filterTeam={filterTeam}
-                setFilterTeam={setFilterTeam}
-                onOpenRdoDetail={handleOpenRdoFromAnalysis}
               />
             )}
         </main>

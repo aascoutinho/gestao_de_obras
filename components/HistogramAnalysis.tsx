@@ -43,6 +43,7 @@ import {
   getRdoMonthKey
 } from '../utils/histogramUtils';
 import * as db from '../services/dbService';
+import { exportRDOsToExcel } from '../utils/excelExportUtils';
 
 interface HistogramAnalysisProps {
   projects: Project[];
@@ -272,6 +273,24 @@ export const HistogramAnalysis: React.FC<HistogramAnalysisProps> = ({
         </div>
 
         <div className="flex flex-wrap gap-3">
+          {selectedProject && projectRdos.length > 0 && (
+            <button
+              onClick={() => {
+                exportRDOsToExcel(
+                  projectRdos,
+                  selectedProject.name,
+                  histograms,
+                  `Diario_RDO_Consolidado_${selectedProject.name.replace(/\s+/g, '_')}.xlsx`
+                );
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold transition-all shadow-lg hover:scale-105 active:scale-95 border border-white/10"
+              title="Exportar dados diários consolidados de todas as equipes para Excel"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Exportar Diário (Excel)</span>
+            </button>
+          )}
+
           <select 
             value={selectedProject?.id || ''} 
             onChange={(e) => {

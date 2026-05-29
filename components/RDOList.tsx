@@ -1,5 +1,8 @@
 import React from 'react';
-import { FileText, Upload, Download, Trash2, Calendar, ClipboardList, ArrowRight, DollarSign, CloudRain, AlertTriangle } from 'lucide-react';
+import { FileText, Upload, Download, Trash2, Calendar, ClipboardList, ArrowRight, DollarSign, CloudRain, AlertTriangle, FileSpreadsheet } from 'lucide-react';
+import { exportRDOsToExcel } from '../utils/excelExportUtils';
+import * as db from '../services/dbService';
+import { HistogramItem } from '../types';
 import { RDOData, Team, Project } from '../types';
 import { formatMoney, calculateRDOTotal, parseDate } from '../utils';
 
@@ -27,6 +30,23 @@ export const RDOList: React.FC<RDOListProps> = ({
     .filter(r => r.teamId === selectedTeam?.id)
     .sort((a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime());
 
+  const [histograms, setHistograms] = React.useState<HistogramItem[]>([]);
+
+  React.useEffect(() => {
+    if (selectedProject?.id) {
+      db.getHistograms(selectedProject.id)
+        .then(setHistograms)
+        .catch(err => console.error("Erro ao carregar histogramas", err));
+    }
+  }, [selectedProject]);
+
+  const handleExportExcel = () => {
+    if (!selectedTeam || !selectedProject) return;
+    
+    const fileName = `Diario_RDO_Equipe_${selectedTeam.name.replace(/\s+/g, '_')}_${selectedProject.name.replace(/\s+/g, '_')}.xlsx`;
+    exportRDOsToExcel(teamRdos, selectedProject.name, histograms, fileName);
+  };
+
   return (
     <div className="animate-fade-in space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -36,13 +56,26 @@ export const RDOList: React.FC<RDOListProps> = ({
             Histórico de produção para a turma <span className="text-blue-400 font-bold">{selectedTeam?.name}</span>
           </p>
         </div>
-        <button 
-          onClick={onUploadNew}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3.5 rounded-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/40 group border border-white/10"
-        >
-          <Upload className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
-          <span className="font-black text-sm tracking-wide uppercase">Analisar com IA</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {teamRdos.length > 0 && (
+            <button 
+              onClick={handleExportExcel}
+              className="bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 px-6 py-3.5 rounded-2xl flex items-center gap-2.5 hover:scale-105 active:scale-95 transition-all border border-emerald-500/20 w-full md:w-auto justify-center font-bold text-sm tracking-wide"
+              title="Exportar apontamento diário desta equipe para Excel"
+            >
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+              <span>Exportar Excel</span>
+            </button>
+          )}
+
+          <button 
+            onClick={onUploadNew}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3.5 rounded-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/40 group border border-white/10 w-full md:w-auto justify-center"
+          >
+            <Upload className="w-5 h-5 group-hover:-translate-y-1 transition-transform duration-300" />
+            <span className="font-black text-sm tracking-wide uppercase">Analisar com IA</span>
+          </button>
+        </div>
       </div>
 
       {teamRdos.length === 0 ? (
@@ -101,7 +134,7 @@ export const RDOList: React.FC<RDOListProps> = ({
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[10px] font-black text-sky-400 uppercase tracking-widest">
                       <CloudRain className="w-3 h-3" />
-                      {rdo.weatherMorning || 'Sem clima'}
+                      {rdo.weather || 'Sem clima'}
                     </span>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${
                       (rdo.occurrences?.length || 0) > 0

@@ -3,50 +3,71 @@ export type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'HISTOGRAM';
 export interface Project {
   id: string;
   name: string;
-  location: string;
-  client: string;
-  startDate: string;
-  endDate: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'ON_HOLD';
-  contractValue: number;
+  location?: string;
+  client?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: 'ACTIVE' | 'COMPLETED' | 'ON_HOLD';
+  contractValue?: number;
+  regional?: string;
+  budgetValue?: number;
+  forecastValue?: number;
+  createdAt: string;
+  services: ServiceItem[];
+}
+
+export interface ServiceItem {
+  code: string;
+  scope: string;
+  unit: string;
+  value: number;
 }
 
 export interface Team {
   id: string;
   projectId: string;
   name: string;
-  leader: string;
-  membersCount: number;
+  leader?: string;
+  membersCount?: number;
+  createdAt: string;
 }
 
 export interface Workforce {
   role: string;
   count: number;
+  totalHours?: number;
 }
 
 export interface Equipment {
   name: string;
   count: number;
+  hoursOperated?: number;
 }
 
 export interface Activity {
   description: string;
-  status: 'DONE' | 'IN_PROGRESS' | 'PENDING';
+  status: 'DONE' | 'IN_PROGRESS' | 'PENDING' | string;
+  code?: string;
+  quantity?: number;
+  progress?: number;
 }
 
 export interface Occurrence {
-  type: 'WEATHER' | 'ACCIDENT' | 'SUPPLY' | 'TECHNICAL' | 'OTHER';
+  type: string;
   description: string;
-  impact: 'LOW' | 'MEDIUM' | 'HIGH';
+  impact?: 'LOW' | 'MEDIUM' | 'HIGH';
+  impactTimeMinutes?: number;
 }
 
 export interface RDOData {
   id: string;
-  projectId: string; // Adicionado para facilitar filtros
+  projectId?: string;
   teamId: string;
   date: string;
-  shift: 'DAY' | 'NIGHT';
-  weather: 'SUNNY' | 'CLOUDY' | 'RAINY';
+  reportNumber?: string;
+  shift?: 'DAY' | 'NIGHT';
+  weather?: string;
+  rainIndexMm?: number;
   workforce: Workforce[];
   equipment: Equipment[];
   activities: Activity[];
@@ -89,12 +110,12 @@ export interface HistogramItem {
   id: string;
   projectId: string;
   category: HistogramCategory;
-  sourceGroup: HistogramSourceGroup;
+  sourceGroup?: HistogramSourceGroup;
   name: string;
   normalizedName: string;
   peakQty: number;
   monthlyPlan: HistogramMonthlyPlan[];
-  source: HistogramSource;
+  source?: HistogramSource;
 }
 
 export interface HistogramAnalysisRow {
