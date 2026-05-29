@@ -24,6 +24,7 @@ import { ProjectServices } from './components/ProjectServices';
 import { RDODetail } from './components/RDODetail';
 import { ProductionPriceTable } from './components/ProductionPriceTable';
 import { HistogramAnalysis } from './components/HistogramAnalysis';
+import ContractIntelligencePage from './components/ContractIntelligence/ContractIntelligencePage';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
 import * as db from './services/dbService';
@@ -31,7 +32,7 @@ import * as db from './services/dbService';
 // --- Local Storage Keys ---
 const STORAGE_PROJECT_SYNCED = 'rdo_projects_aws_synced';
 
-type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'HISTOGRAM';
+type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'HISTOGRAM' | 'CONTRACT_INTELLIGENCE';
 type ViewState = 'PROJECT_LIST' | 'TEAMS_LIST' | 'RDO_LIST' | 'UPLOAD_ANALYSIS';
 type ProjectTab = 'TEAMS' | 'SERVICES';
 
@@ -382,6 +383,11 @@ function App() {
     setCurrentRDO(null);
   };
 
+  const navigateToContractIntelligence = () => {
+    setActiveMenu('CONTRACT_INTELLIGENCE');
+    setCurrentRDO(null);
+  };
+
   // --- Analysis & Upload Handlers ---
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -517,6 +523,18 @@ function App() {
           >
             <FileSpreadsheet className="w-5 h-5" />
             <span className="font-semibold text-sm">Histograma</span>
+          </button>
+
+          <button
+            onClick={navigateToContractIntelligence}
+            className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
+              activeMenu === 'CONTRACT_INTELLIGENCE' 
+                ? 'bg-gradient-premium text-white shadow-xl shadow-blue-600/20 scale-[1.02]' 
+                : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span className="font-semibold text-sm">Inteligência Contratual</span>
           </button>
         </nav>
 
@@ -905,6 +923,15 @@ function App() {
                 setFilterRegional={setFilterRegional} 
                 filterProject={filterProject}
                 setFilterProject={setFilterProject}
+              />
+            )}
+            {activeMenu === 'CONTRACT_INTELLIGENCE' && (
+              <ContractIntelligencePage 
+                projects={projects}
+                teams={teams}
+                rdos={rdos}
+                selectedProject={selectedProject}
+                onSelectProject={setSelectedProject}
               />
             )}
         </main>

@@ -1,3 +1,8 @@
+/**
+ * @deprecated ATENÇÃO: Este arquivo é um backup de uma refatoração passada.
+ * O ponto de entrada real da aplicação (index.tsx) utiliza o App.tsx.
+ * Por favor, não modifique este arquivo. Faça alterações diretamente no App.tsx.
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Upload, FileText, Loader2, BarChart2, CheckCircle2, 
