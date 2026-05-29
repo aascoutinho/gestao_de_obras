@@ -30,4 +30,5 @@ export const TABLES = {
   RDOS:       import.meta.env.VITE_DYNAMODB_TABLE_RDOS       || "Obras_RDOs",
   HISTOGRAMS: import.meta.env.VITE_DYNAMODB_TABLE_HISTOGRAMS || "Obras_Histograms",
   DIMENSIONS: import.meta.env.VITE_DYNAMODB_TABLE_DIMENSIONS || "Obras_Dimensions",
+  COMPOSITIONS: import.meta.env.VITE_DYNAMODB_TABLE_COMPOSITIONS || "Obras_Compositions",
 };

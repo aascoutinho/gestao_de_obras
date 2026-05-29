@@ -11,6 +11,7 @@ import { Project, Team, RDOData, HistogramItem } from "../types";
 import {
   DimensionStoredRecord,
   DimensionImportResult,
+  CompositionAIExtractionResult,
 } from "../src/analytics/types/analyticsTypes";
 
 // --- Project Operations ---
@@ -219,5 +220,59 @@ export const deleteDimensions = async (projectId: string): Promise<void> => {
     }));
   } catch (e) {
     console.warn(`DynamoDB Dimensions delete failed for project ${projectId}.`, e);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// --- Compositions Operations (Sprint 3 Revisada) ---
+// ---------------------------------------------------------------------------
+
+export const saveCompositions = async (
+  projectId: string,
+  result: CompositionAIExtractionResult
+): Promise<void> => {
+  try {
+    await ddbDocClient.send(new PutCommand({
+      TableName: TABLES.COMPOSITIONS,
+      Item: {
+        projectId,
+        ...result,
+        updatedAt: new Date().toISOString()
+      },
+    }));
+  } catch (e) {
+    console.warn("DynamoDB Compositions save failed, falling back to localStorage", e);
+  } finally {
+    localStorage.setItem(`compositions_${projectId}`, JSON.stringify(result));
+  }
+};
+
+export const getCompositions = async (
+  projectId: string
+): Promise<CompositionAIExtractionResult | null> => {
+  try {
+    const result = await ddbDocClient.send(new GetCommand({
+      TableName: TABLES.COMPOSITIONS,
+      Key: { projectId },
+    }));
+    if (result.Item) return result.Item as CompositionAIExtractionResult;
+  } catch (e) {
+    console.warn(`DynamoDB Compositions get failed for project ${projectId} — tentando localStorage.`, e);
+  }
+
+  // Fallback: localStorage
+  const local = localStorage.getItem(`compositions_${projectId}`);
+  return local ? (JSON.parse(local) as CompositionAIExtractionResult) : null;
+};
+
+export const deleteCompositions = async (projectId: string): Promise<void> => {
+  localStorage.removeItem(`compositions_${projectId}`);
+  try {
+    await ddbDocClient.send(new DeleteCommand({
+      TableName: TABLES.COMPOSITIONS,
+      Key: { projectId },
+    }));
+  } catch (e) {
+    console.warn(`DynamoDB Compositions delete failed for project ${projectId}.`, e);
   }
 };

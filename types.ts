@@ -13,6 +13,7 @@ export interface Project {
   budgetValue?: number;
   forecastValue?: number;
   createdAt: string;
+  address?: string;
   services: ServiceItem[];
 }
 
@@ -38,6 +39,12 @@ export interface Workforce {
   totalHours?: number;
 }
 
+export interface WorkerGroup {
+  role: string;
+  count: number;
+  totalHours?: number;
+}
+
 export interface Equipment {
   name: string;
   count: number;
@@ -53,11 +60,14 @@ export interface Activity {
 }
 
 export interface Occurrence {
-  type: string;
+  type?: string;
   description: string;
   impact?: 'LOW' | 'MEDIUM' | 'HIGH';
   impactTimeMinutes?: number;
 }
+
+// Typo fallback for older components
+export type Occurence = Occurrence;
 
 export interface RDOData {
   id: string;
@@ -67,12 +77,17 @@ export interface RDOData {
   reportNumber?: string;
   shift?: 'DAY' | 'NIGHT';
   weather?: string;
+  weatherMorning?: string;
+  weatherAfternoon?: string;
   rainIndexMm?: number;
   workforce: Workforce[];
   equipment: Equipment[];
   activities: Activity[];
   occurrences: Occurrence[];
   notes?: string;
+  comments?: string;
+  contractNumber?: string;
+  processedAt?: string;
   synced?: boolean;
 }
 

@@ -213,14 +213,37 @@ export interface CompositionItem {
 }
 
 // ---------------------------------------------------------------------------
+// 4-A. ServiceComposition
+// ---------------------------------------------------------------------------
+/**
+ * Composição de um serviço, agregando custo, preço e produtividade.
+ */
+export interface ServiceComposition {
+  /** Código do serviço */
+  code: string;
+  /** Descrição do serviço */
+  description: string;
+  /** Unidade de medida */
+  unit: string;
+  /** Preço unitário (venda) */
+  unitPrice: number;
+  /** Custo unitário (teórico) */
+  unitCost: number;
+  /** Produção da equipe (ex: quantidade por hora) */
+  teamProduction?: number;
+  /** Insumos da composição */
+  items: CompositionItem[];
+}
+
+// ---------------------------------------------------------------------------
 // 5. CompositionImportResult
 // ---------------------------------------------------------------------------
 /**
  * Resultado de uma importação de composições analíticas.
  */
 export interface CompositionImportResult {
-  /** Mapa de código do serviço → lista de itens de composição */
-  compositionsByService: Record<string, CompositionItem[]>;
+  /** Mapa de código do serviço → Composição do serviço */
+  compositionsByService: Record<string, ServiceComposition>;
   /** Total de serviços processados */
   totalServices: number;
   /** Total de serviços com composição completa */
@@ -318,130 +341,148 @@ export interface MonthlyResourceFact {
 // ---------------------------------------------------------------------------
 // 9. MeasurementFact
 // ---------------------------------------------------------------------------
+
+export type MeasurementStatus =
+  | 'ENCONTRADA_COMPOSICAO'
+  | 'SEM_COMPOSICAO'
+  | 'EQUIVALENCIA_NOME'
+  | 'PRECO_SERVICES_FALLBACK'
+  | 'UNIDADE_DIVERGENTE';
+
 /**
- * Fato de medição: representa uma medição periódica de serviço executado.
- * Liga ServiceItem (do contrato) à quantidade efetivamente medida.
+ * Fato de medição: representa uma atividade executada (RDO) valorada contratualmente.
  */
 export interface MeasurementFact {
-  /** ID único da medição */
-  measurementId: string;
   /** ID do projeto */
   projectId: string;
-  /** Código do serviço medido (= ServiceItem.code) */
-  serviceCode: string;
-  /** Descrição do serviço */
-  serviceDescription: string;
+  /** Data da execução (do RDO) */
+  date: string;
+  /** Código da atividade */
+  activityCode: string;
+  /** Descrição da atividade */
+  activityDescription: string;
   /** Unidade de medida */
   unit: string;
-  /** Período de medição (formato 'YYYY-MM') */
-  period: string;
-  /** Quantidade medida no período */
-  measuredQuantity: number;
-  /** Quantidade acumulada até o período */
-  cumulativeQuantity: number;
-  /** Preço unitário contratado */
+  /** Quantidade executada */
+  quantity: number;
+  /** Preço unitário (venda) */
   unitPrice: number;
-  /** Valor financeiro da medição (= measuredQuantity × unitPrice) */
+  /** Custo unitário (teórico) */
+  unitCost: number;
+  /** Valor financeiro executado (quantity × unitPrice) */
   measuredValue: number;
-  /** Valor financeiro acumulado */
-  cumulativeValue: number;
-  /** Status da medição */
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
-  /** Data de aprovação (ISO 8601), quando aplicável */
-  approvedAt?: string;
+  /** Custo teórico total (quantity × unitCost) */
+  theoreticalCost: number;
+  /** Margem absoluta (measuredValue - theoreticalCost) */
+  margin: number;
+  /** Margem percentual (margin / measuredValue) */
+  marginPercent: number;
+  /** Status do casamento com composição */
+  status: MeasurementStatus;
 }
 
 // ---------------------------------------------------------------------------
 // 10. ProductivityFact
 // ---------------------------------------------------------------------------
+
+export type ProductivityStatus =
+  | 'ACIMA_COMPOSICAO'
+  | 'CONFORME_COMPOSICAO'
+  | 'ABAIXO_COMPOSICAO'
+  | 'SEM_PRODUCAO'
+  | 'SEM_BASE';
+
 /**
- * Fato de produtividade: razão entre quantidade produzida e recursos
- * consumidos em um período, derivada dos RDOs.
+ * Fato de produtividade: compara produção real vs esperada por atividade.
  */
 export interface ProductivityFact {
   /** ID do projeto */
   projectId: string;
-  /** ID do time (= Team.id) */
-  teamId: string;
+  /** Data da execução (do RDO) */
+  date: string;
   /** Código do serviço / atividade */
-  serviceCode: string;
-  /** Mês de referência (formato 'YYYY-MM') */
-  monthKey: string;
-  /** Total de horas-homem consumidas no período */
-  totalManHours: number;
-  /** Total de horas-equipamento consumidas no período */
-  totalEquipmentHours: number;
-  /** Quantidade produzida no período */
-  producedQuantity: number;
-  /** Unidade de medida da produção */
+  activityCode: string;
+  /** Descrição da atividade */
+  activityDescription: string;
+  /** Horas trabalhadas (baseadas no RDO) */
+  workedHours: number;
+  /** Produção esperada (workedHours × teamProduction) */
+  expectedProduction: number;
+  /** Produção real apontada */
+  actualProduction: number;
+  /** Unidade de medida */
   unit: string;
-  /** Índice de produtividade (quantidade / horas-homem) */
-  productivityIndex: number;
-  /** Índice de produtividade referencial (do orçamento) */
-  referenceProductivityIndex?: number;
-  /** Desvio do índice de produtividade (real − referência) */
-  productivityDeviation?: number;
+  /** Desvio de produção (actual - expected) */
+  productionDeviation: number;
+  /** Aderência (actual / expected) */
+  adherence: number;
+  /** Produtividade real por hora (actual / workedHours) */
+  actualProductivityPerHour: number;
+  /** Status da aderência */
+  status: ProductivityStatus;
 }
 
 // ---------------------------------------------------------------------------
 // 11. OccurrenceFact
 // ---------------------------------------------------------------------------
+
+export type OccurrenceCategory =
+  | 'CIRCULACAO_TRENS'
+  | 'FALTA_MAO_OBRA'
+  | 'EQUIPAMENTO_FERRAMENTA'
+  | 'CLIMA'
+  | 'CALENDARIO'
+  | 'OUTRA';
+
+export type OccurrenceResponsibility =
+  | 'CONTRATANTE_OPERACAO'
+  | 'CONTRATADA'
+  | 'INDETERMINADA'
+  | 'CALENDARIO';
+
+export type OccurrenceEligibility =
+  | 'POTENCIAL_PLEITO'
+  | 'RISCO_CONTRATADA'
+  | 'REQUER_ANALISE'
+  | 'NAO_ELEGIVEL';
+
+export type OccurrenceStatus =
+  | 'DURACAO_CALCULADA'
+  | 'SEM_DURACAO_EXPLICITA';
+
 /**
- * Fato de ocorrência: agrega as ocorrências dos RDOs para análise
- * de frequência e impacto no prazo/custo.
- * Compatível com RDOData.occurrences.
+ * Fato de ocorrência: detalha uma ocorrência diária do RDO com classificação contratual.
  */
 export interface OccurrenceFact {
-  /** ID do projeto */
   projectId: string;
-  /** ID do time (= Team.id) */
-  teamId?: string;
-  /** Mês de referência (formato 'YYYY-MM') */
-  monthKey: string;
-  /** Tipo de ocorrência (= Occurrence.type) */
-  occurrenceType: string;
-  /** Nível de impacto */
-  impactLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-  /** Quantidade de registros no período */
-  count: number;
-  /** Total de minutos de impacto no período */
-  totalImpactMinutes: number;
-  /** Total de horas de impacto (totalImpactMinutes / 60) */
-  totalImpactHours: number;
-  /** Custo estimado do impacto (quando calculável) */
-  estimatedImpactCost?: number;
+  date: string;
+  description: string;
+  category: OccurrenceCategory;
+  responsibility: OccurrenceResponsibility;
+  eligibility: OccurrenceEligibility;
+  impactMinutes: number;
+  impactHours: number;
+  status: OccurrenceStatus;
 }
 
 // ---------------------------------------------------------------------------
 // 12. IdlenessFact
 // ---------------------------------------------------------------------------
 /**
- * Fato de ociosidade: registra períodos em que recursos (mão-de-obra
- * ou equipamentos) estiveram disponíveis mas não produziram.
+ * Fato de ociosidade: registra o cálculo preliminar de custo improdutivo
+ * associado a uma ocorrência de potencial pleito.
  */
 export interface IdlenessFact {
-  /** ID do projeto */
   projectId: string;
-  /** ID do time */
-  teamId?: string;
-  /** Mês de referência (formato 'YYYY-MM') */
-  monthKey: string;
-  /** Nome do recurso ocioso */
-  resourceName: string;
-  /** Categoria do recurso */
-  resourceCategory: 'MAO_OBRA_DIRETA' | 'MAO_OBRA_INDIRETA' | 'EQUIPAMENTOS';
-  /** Total de horas disponíveis no período */
-  availableHours: number;
-  /** Total de horas efetivamente trabalhadas no período */
-  workedHours: number;
-  /** Horas ociosas = available − worked */
-  idleHours: number;
-  /** Percentual de ociosidade (0–100) */
-  idlenessPercent: number;
-  /** Custo da ociosidade (quando calculável) */
-  idlenessCost?: number;
-  /** Motivo principal da ociosidade */
-  primaryReason?: string;
+  date: string;
+  occurrenceDescription: string;
+  impactHours: number;
+  workforceCount: number;
+  equipmentCount: number;
+  workforceValue: number;
+  equipmentValue: number;
+  totalValue: number;
+  calculationMethod: 'CONSERVADOR_BASE_RDO' | 'PRECISO';
 }
 
 // ---------------------------------------------------------------------------
@@ -482,4 +523,119 @@ export interface PowerBIModel {
   factIdleness: IdlenessFact[];
   /** Resultado consolidado da análise contratual */
   analyticsResult?: ContractAnalyticsResult;
+}
+
+// ---------------------------------------------------------------------------
+// 12. CompactSummary (AI Input Payload)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resumo compacto dos dados da obra, projetado especificamente 
+ * para ser enviado ao modelo Gemini, sem estourar limite de tokens, 
+ * contendo apenas fatos calculados, sem detalhamento de cada RDO.
+ */
+export interface CompactSummary {
+  projectName: string;
+  periodLabel: string; // Ex: 'Março/2026' ou 'Todo o período'
+  totalRdosProcessed: number;
+  
+  // KPIs de Medição e Custos
+  measuredValue: number;
+  theoreticalCost: number;
+  absoluteMargin: number;
+  marginPercent: number;
+  
+  // KPIs de Improdutividade e Pleitos Potenciais
+  totalOccurrences: number;
+  impactedHours: number;
+  potentialClaimValue: number;
+  
+  // Resumo agrupado
+  occurrencesByType: { type: string; count: number; impactTimeMinutes: number }[];
+  productivityTopIssues: { activity: string; expected: number; actual: number }[]; // piores 5
+  
+  // Principais avisos de Validação
+  validationWarnings: string[];
+}
+
+// ---------------------------------------------------------------------------
+// 13. AI Composition Extraction (Sprint 3 Revisada)
+// ---------------------------------------------------------------------------
+
+export type CompositionType =
+  | 'SERVICO_PRODUTIVO'
+  | 'MOBILIZACAO'
+  | 'ADMINISTRACAO_LOCAL'
+  | 'DESMOBILIZACAO'
+  | 'IMPRODUTIVIDADE_MO'
+  | 'IMPRODUTIVIDADE_EQUIPAMENTO'
+  | 'TRANSPORTE'
+  | 'OUTRO';
+
+export interface AICompositionItem {
+  id: string;
+  projectId: string;
+
+  codigoComposicao: string;
+  servicoOriginal: string;
+  servicoTratado: string;
+  unidade: string;
+
+  producaoEquipe?: number;
+  custoHorarioEquipamentos?: number;
+  custoHorarioMaoObra?: number;
+  custoHorarioTotal?: number;
+
+  custoUnitarioExecucao?: number;
+  custoMateriais?: number;
+  custoTransporte?: number;
+  custoUnitarioTotal?: number;
+
+  bonificacaoPercentual?: number;
+  bonificacaoValor?: number;
+  precoUnitarioTotal?: number;
+
+  tipoComposicao: CompositionType;
+
+  hasBlackoutInOriginal?: boolean;
+  isPreferredForCalculation?: boolean;
+
+  paginaOrigem?: number;
+  confiancaExtracao?: 'ALTA' | 'MEDIA' | 'BAIXA';
+  observacao?: string;
+}
+
+export interface CompositionResourceItem {
+  id: string;
+  projectId: string;
+  compositionId: string;
+  codigoComposicao: string;
+  servicoTratado: string;
+
+  tipoRecurso: 'EQUIPAMENTO' | 'MAO_OBRA' | 'MATERIAL' | 'TRANSPORTE' | 'OUTRO';
+  recurso: string;
+  unidade?: string;
+  quantidade?: number;
+  utilizacaoProdutiva?: number;
+  utilizacaoImprodutiva?: number;
+  custoOperacionalProdutivo?: number;
+  custoOperacionalImprodutivo?: number;
+  custoUnitario?: number;
+  custoHorario?: number;
+  custoTotal?: number;
+
+  observacao?: string;
+}
+
+export interface CompositionAIExtractionResult {
+  projectId: string;
+  sourceFileName: string;
+  extractedAt: string;
+
+  compositions: AICompositionItem[];
+  resources: CompositionResourceItem[];
+
+  errors: string[];
+  warnings: string[];
+  rawModelNotes?: string;
 }

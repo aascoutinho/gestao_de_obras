@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Upload, CheckCircle, AlertTriangle, XCircle, Calendar, Tag, DollarSign, Save, Trash2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { Project } from '../../../types';
-import { DimensionImportResult, DimensionGroup } from '../../analytics/types/analyticsTypes';
-import { parseDimensionsExcel } from '../../analytics/parsers/dimensionsParser';
-import { saveDimensions, getDimensions, deleteDimensions } from '../../../services/dbService';
+import { Project } from '../../types';
+import { DimensionImportResult, DimensionGroup } from '../../src/analytics/types/analyticsTypes';
+import { parseDimensionsExcel } from '../../src/analytics/parsers/dimensionsParser';
+import { saveDimensions, getDimensions, deleteDimensions } from '../../services/dbService';
 
 // ---------------------------------------------------------------------------
 // Props

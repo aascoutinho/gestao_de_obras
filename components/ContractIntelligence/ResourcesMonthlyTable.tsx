@@ -19,8 +19,8 @@ import {
   MonthlyResourceStatus,
   splitResourceFactsByGroup,
   getFactsSummary,
-} from '../../analytics/engines/resourcesMonthlyEngine';
-import { DimensionGroup } from '../../analytics/types/analyticsTypes';
+} from '../../src/analytics/engines/resourcesMonthlyEngine';
+import { DimensionGroup } from '../../src/analytics/types/analyticsTypes';
 
 // ---------------------------------------------------------------------------
 // Props

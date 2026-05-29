@@ -5,7 +5,7 @@ import {
   Users, Home, Plus, ArrowLeft, Building2, HardHat, Truck,
   ClipboardList, AlertTriangle, MessageSquare, DollarSign, 
   FileSpreadsheet, LayoutDashboard, LogOut, TrendingUp, TrendingDown, Calendar, Target, Activity,
-  Filter, Edit, Save, Layers
+  Filter, Edit, Save, Layers, Brain
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
@@ -23,6 +23,7 @@ import { Breadcrumbs } from './components/Breadcrumbs';
 import { ProjectServices } from './components/ProjectServices';
 import { RDODetail } from './components/RDODetail';
 import { ProductionAnalysis } from './components/ProductionAnalysis';
+import ContractIntelligencePage from './components/ContractIntelligence/ContractIntelligencePage';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
 import * as db from './services/dbService';
@@ -30,7 +31,7 @@ import * as db from './services/dbService';
 // --- Local Storage Keys ---
 const STORAGE_PROJECT_SYNCED = 'rdo_projects_aws_synced';
 
-type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS';
+type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'CONTRACT_INTELLIGENCE';
 type ViewState = 'PROJECT_LIST' | 'TEAMS_LIST' | 'RDO_LIST' | 'UPLOAD_ANALYSIS';
 type ProjectTab = 'TEAMS' | 'SERVICES';
 
@@ -485,6 +486,18 @@ function App() {
             <BarChart2 className="w-5 h-5" />
             <span className="font-semibold text-sm">Análise de Produção</span>
           </button>
+
+          <button
+            onClick={() => { setActiveMenu('CONTRACT_INTELLIGENCE'); setSelectedProject(null); setCurrentRDO(null); }}
+            className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
+              activeMenu === 'CONTRACT_INTELLIGENCE' 
+                ? 'bg-gradient-premium text-white shadow-xl shadow-blue-600/20 scale-[1.02]' 
+                : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <Brain className="w-5 h-5" />
+            <span className="font-semibold text-sm">Contract Intelligence</span>
+          </button>
         </nav>
 
         <div className="p-6">
@@ -856,9 +869,11 @@ function App() {
                  <RDODetail 
                    currentRDO={currentRDO}
                    selectedProject={selectedProject}
+                   selectedTeam={selectedTeam}
                    onClose={() => setCurrentRDO(null)}
                    onExportCSV={exportToCSV}
                    onDeleteRDO={deleteRDO}
+                   onSaveUpdatedRdo={async () => {}}
                  />
                ) : (
                  <>
@@ -989,6 +1004,15 @@ function App() {
                 filterTeam={filterTeam}
                 setFilterTeam={setFilterTeam}
                 onOpenRdoDetail={handleOpenRdoFromAnalysis}
+              />
+            )}
+            {activeMenu === 'CONTRACT_INTELLIGENCE' && (
+              <ContractIntelligencePage 
+                projects={projects}
+                teams={teams}
+                rdos={rdos}
+                selectedProject={selectedProject}
+                onSelectProject={setSelectedProject}
               />
             )}
         </main>
