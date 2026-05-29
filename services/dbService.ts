@@ -8,6 +8,10 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { ddbDocClient, TABLES } from "./awsConfig";
 import { Project, Team, RDOData, HistogramItem } from "../types";
+import {
+  DimensionStoredRecord,
+  DimensionImportResult,
+} from "../src/analytics/types/analyticsTypes";
 
 // --- Project Operations ---
 
@@ -139,5 +143,81 @@ export const deleteHistograms = async (projectId: string): Promise<void> => {
     console.warn("DynamoDB Histogram delete failed", e);
   } finally {
     localStorage.removeItem(`histograms_${projectId}`);
+  }
+};
+
+// --- Dimensions Operations (Contract Intelligence) ---
+
+/**
+ * Persiste as dimensões de uma obra no DynamoDB (Obras_Dimensions).
+ * Estratégia: PutItem com chave projectId (substitui o registro anterior).
+ * Fallback automático em localStorage com chave dimensions_${projectId}.
+ */
+export const saveDimensions = async (
+  projectId: string,
+  result: DimensionImportResult
+): Promise<void> => {
+  const record: DimensionStoredRecord = {
+    projectId,
+    type: 'DIMENSIONS',
+    items:     result.items,
+    holidays:  result.holidays,
+    metadata:  result.metadata,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Sempre persiste no localStorage como cache local
+  localStorage.setItem(`dimensions_${projectId}`, JSON.stringify(record));
+
+  try {
+    await ddbDocClient.send(new PutCommand({
+      TableName: TABLES.DIMENSIONS,
+      Item: record,
+    }));
+  } catch (e) {
+    console.warn(
+      `DynamoDB Dimensions save failed for project ${projectId} — dados salvos em localStorage.`,
+      e
+    );
+  }
+};
+
+/**
+ * Recupera as dimensões de uma obra.
+ * Tenta DynamoDB primeiro; usa localStorage como fallback.
+ */
+export const getDimensions = async (
+  projectId: string
+): Promise<DimensionStoredRecord | null> => {
+  try {
+    const result = await ddbDocClient.send(new GetCommand({
+      TableName: TABLES.DIMENSIONS,
+      Key: { projectId },
+    }));
+    if (result.Item) return result.Item as DimensionStoredRecord;
+  } catch (e) {
+    console.warn(
+      `DynamoDB Dimensions get failed for project ${projectId} — tentando localStorage.`,
+      e
+    );
+  }
+
+  // Fallback: localStorage
+  const local = localStorage.getItem(`dimensions_${projectId}`);
+  return local ? (JSON.parse(local) as DimensionStoredRecord) : null;
+};
+
+/**
+ * Remove as dimensões de uma obra do DynamoDB e do localStorage.
+ */
+export const deleteDimensions = async (projectId: string): Promise<void> => {
+  localStorage.removeItem(`dimensions_${projectId}`);
+  try {
+    await ddbDocClient.send(new DeleteCommand({
+      TableName: TABLES.DIMENSIONS,
+      Key: { projectId },
+    }));
+  } catch (e) {
+    console.warn(`DynamoDB Dimensions delete failed for project ${projectId}.`, e);
   }
 };

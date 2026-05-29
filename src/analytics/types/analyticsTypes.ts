@@ -48,51 +48,141 @@ export interface AnalyticsProjectContext {
 }
 
 // ---------------------------------------------------------------------------
-// 2. DimensionItem
+// 2-A. DimensionGroup  (grupos padronizados da planilha de dimensões)
 // ---------------------------------------------------------------------------
 /**
- * Representa um item de composição de dimensão (insumo, serviço ou recurso)
- * importado de planilhas externas ou extraído via IA.
+ * Grupos reconhecidos na planilha de dimensões de obra.
+ * Mapeados a partir da coluna "Grupo" com tolerância a variações.
+ */
+export type DimensionGroup =
+  | 'MOD'        // Mão-de-Obra Direta
+  | 'MOI'        // Mão-de-Obra Indireta
+  | 'EQUIP'      // Equipamentos
+  | 'MATERIAL'   // Materiais
+  | 'OTHER';     // Não reconhecido
+
+// ---------------------------------------------------------------------------
+// 2-B. DimensionPlanMonth  (entrada do plano mensal por item)
+// ---------------------------------------------------------------------------
+/**
+ * Quantidade planejada de um item de dimensão para um mês específico.
+ * Derivada das colunas Qtd_Plan_Mes_1..N usando i_start como âncora.
+ */
+export interface DimensionPlanMonth {
+  /** Chave do mês no formato 'YYYY-MM' */
+  monthKey: string;
+  /** Rótulo legível (ex.: 'Abr/2026') */
+  monthLabel: string;
+  /** Quantidade planejada para o mês */
+  quantity: number;
+}
+
+// ---------------------------------------------------------------------------
+// 2. DimensionItem  (item completo importado da planilha)
+// ---------------------------------------------------------------------------
+/**
+ * Representa um item de dimensão importado da planilha de obra.
+ * Compatível com ServiceItem (code, unit) e HistogramItem (normalizedName).
  */
 export interface DimensionItem {
-  /** Código único do item */
-  code: string;
-  /** Descrição/nome do item */
-  description: string;
-  /** Unidade de medida (m², m³, h, un, etc.) */
-  unit: string;
-  /** Quantidade prevista no contrato */
-  contractedQuantity: number;
-  /** Preço unitário contratado */
-  unitPrice: number;
-  /** Categoria de custo (material, mão-de-obra, equipamento, etc.) */
-  costCategory?: 'MATERIAL' | 'LABOR' | 'EQUIPMENT' | 'OTHER';
-  /** Referência à tabela de preços origem (ex.: SINAPI, SETOP, PRÓPRIO) */
-  priceTableRef?: string;
+  /** Nome original conforme planilha (coluna Item_Padrao) */
+  name: string;
+  /** Nome normalizado para matching (uppercase, sem acentos) */
+  normalizedName: string;
+  /** Equivalência no RDO (coluna Item_RDO), quando informada */
+  rdoEquivalent?: string;
+  /** Nome normalizado da equivalência RDO */
+  rdoEquivalentNormalized?: string;
+  /** Grupo/categoria da planilha */
+  group: DimensionGroup;
+  /** Custo mensal unitário (coluna Custo_Mensal_Unitario) */
+  monthlyUnitCost: number;
+  /** Flag: item sem custo informado */
+  hasMissingCost: boolean;
+  /** Flag: item sem grupo informado */
+  hasMissingGroup: boolean;
+  /** Plano mensal derivado de Qtd_Plan_Mes_1..N + i_start */
+  monthlyPlan: DimensionPlanMonth[];
+  /** Data de início do recurso no projeto (i_start, ISO 8601 'YYYY-MM-DD') */
+  iStart?: string;
+  /** Data de fim do recurso no projeto (i_end, ISO 8601 'YYYY-MM-DD') */
+  iEnd?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 2-C. DimensionImportMetadata  (metadados extraídos da planilha)
+// ---------------------------------------------------------------------------
+/**
+ * Metadados da obra extraídos da planilha de dimensões.
+ * Campos opcionais — presentes apenas quando a planilha os contém.
+ */
+export interface DimensionImportMetadata {
+  /** Nome ou número do contrato */
+  contrato?: string;
+  /** Nome do cliente */
+  cliente?: string;
+  /** Centro de custo da obra */
+  centroCusto?: string;
+  /** Valor contratual total */
+  valorContratual?: number;
+  /** Data de início global da obra (i_start da planilha) */
+  iStart?: string;
+  /** Data de término global da obra (i_end da planilha) */
+  iEnd?: string;
+  /** Outros campos não mapeados explicitamente */
+  extra?: Record<string, string | number>;
 }
 
 // ---------------------------------------------------------------------------
 // 3. DimensionImportResult
 // ---------------------------------------------------------------------------
 /**
- * Resultado de uma operação de importação de dimensões.
- * Agrupa os itens importados com sucesso e os erros encontrados.
+ * Resultado completo de uma importação de planilha de dimensões.
+ * Retornado por parseDimensionsExcel().
  */
 export interface DimensionImportResult {
-  /** Itens importados com sucesso */
+  /** Itens de dimensão importados (incluindo os com advertências) */
   items: DimensionItem[];
-  /** Total de linhas processadas */
+  /** Feriados detectados na planilha (formato 'YYYY-MM-DD') */
+  holidays: string[];
+  /** Metadados da obra extraídos da planilha */
+  metadata: DimensionImportMetadata;
+  /** Meses detectados no plano (derivados de i_start + colunas Qtd_Plan_Mes_N) */
+  months: { monthKey: string; monthLabel: string }[];
+  /** Total de linhas de dados processadas */
   totalRows: number;
-  /** Total de itens importados com sucesso */
+  /** Total de itens importados com sucesso (sem erros fatais) */
   successCount: number;
-  /** Total de linhas com erro ou ignoradas */
+  /** Total de linhas descartadas por erro */
   errorCount: number;
-  /** Problemas de validação encontrados durante a importação */
-  issues: ValidationIssue[];
+  /** Erros fatais (item descartado) */
+  errors: string[];
+  /** Advertências não-fatais (item mantido, mas sinalizado) */
+  warnings: string[];
   /** Timestamp da importação (ISO 8601) */
   importedAt: string;
-  /** Fonte dos dados (ex.: 'EXCEL_UPLOAD', 'AI_EXTRACTION', 'MANUAL') */
-  source: 'EXCEL_UPLOAD' | 'AI_EXTRACTION' | 'MANUAL';
+}
+
+// ---------------------------------------------------------------------------
+// 3-A. DimensionStoredRecord  (shape do item DynamoDB Obras_Dimensions)
+// ---------------------------------------------------------------------------
+/**
+ * Shape do item salvo no DynamoDB para uma obra.
+ * Chave primária: projectId (String).
+ */
+export interface DimensionStoredRecord {
+  /** Chave primária = Project.id */
+  projectId: string;
+  /** Discriminador de tipo para uso futuro em tabelas compartilhadas */
+  type: 'DIMENSIONS';
+  /** Itens de dimensão importados */
+  items: DimensionItem[];
+  /** Feriados da obra (formato 'YYYY-MM-DD') */
+  holidays: string[];
+  /** Metadados da obra */
+  metadata: DimensionImportMetadata;
+  /** Timestamp da última atualização (ISO 8601) */
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
