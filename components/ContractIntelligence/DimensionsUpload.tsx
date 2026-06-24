@@ -3,7 +3,7 @@ import { Upload, CheckCircle, AlertTriangle, XCircle, Calendar, Tag, DollarSign,
 import { Project } from '../../types';
 import { DimensionImportResult, DimensionGroup } from '../../src/analytics/types/analyticsTypes';
 import { parseDimensionsExcel } from '../../src/analytics/parsers/dimensionsParser';
-import { saveDimensions, getDimensions, deleteDimensions } from '../../services/dbService';
+import { saveDimensions, getDimensions, deleteDimensions } from '../../services/firestoreService';
 
 // ---------------------------------------------------------------------------
 // Props

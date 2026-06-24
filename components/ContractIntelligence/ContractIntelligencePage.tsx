@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 import { Project, RDOData, Team } from '../../types';
-import { getDimensions, getCompositions } from '../../services/dbService';
+import { getDimensions, getCompositions } from '../../services/firestoreService';
 import { generateUUID } from '../../utils';
 
 import {

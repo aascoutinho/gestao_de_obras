@@ -27,13 +27,13 @@ import { DailyBreakdownTable } from './components/DailyBreakdownTable';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
 import { PlanningTab } from './components/PlanningTab';
-import * as db from './services/dbService';
+import * as db from './services/firestoreService';
 import { getDailyPlans, saveDailyPlans } from './services/dailyPlanService';
 import { getContractData, saveContractData } from './services/contractDataService';
 import { ContractData } from './types';
 
 // --- Local Storage Keys ---
-const STORAGE_PROJECT_SYNCED = 'rdo_projects_aws_synced';
+const STORAGE_PROJECT_SYNCED = 'rdo_projects_synced';
 
 type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'CONTRACT_INTELLIGENCE' | 'PLANNING';
 type ViewState = 'PROJECT_LIST' | 'TEAMS_LIST' | 'RDO_LIST' | 'UPLOAD_ANALYSIS';
@@ -83,12 +83,12 @@ function App() {
   const [filterProject, setFilterProject] = useState('all');
   const [filterTeam, setFilterTeam] = useState('all');
 
-  // Load Data on Mount & AWS Sync
+  // Load Data on Mount & Firestore Sync
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
       try {
-        // 1. Check if we need to migrate local data to AWS
+        // 1. Check if we need to migrate local data to Firestore
         const isSynced = localStorage.getItem(STORAGE_PROJECT_SYNCED);
         
         let currentProjects = await db.getProjects();
@@ -102,7 +102,7 @@ function App() {
           const localRdos = JSON.parse(localStorage.getItem('rdo_history') || '[]');
 
           if (localProjects.length > 0) {
-             console.log("Migrating local data to AWS...");
+             console.log("Migrating local data to Firestore...");
              for (const p of localProjects) await db.saveProject(p);
              for (const t of localTeams) await db.saveTeam(t);
              for (const r of localRdos) await db.saveRdo(r);
@@ -112,7 +112,7 @@ function App() {
              currentRdos = localRdos;
           } else {
              // If no local data, seed with Mock Data
-             console.log("Seeding AWS with initial mock data...");
+             console.log("Seeding Firestore with initial mock data...");
              for (const p of MOCK_PROJECTS) await db.saveProject(p);
              for (const t of MOCK_TEAMS) await db.saveTeam(t);
              for (const r of MOCK_RDOS) await db.saveRdo(r);
@@ -137,8 +137,8 @@ function App() {
         }
         setContractDataMap(cdMap);
       } catch (e) {
-        console.error("Error loading AWS data", e);
-        setError("Erro ao carregar dados da nuvem. Verifique sua conexão e chaves AWS.");
+        console.error("Error loading Firestore data", e);
+        setError("Erro ao carregar dados da nuvem. Verifique a configuração do Firestore.");
       } finally {
         setLoading(false);
       }
@@ -206,7 +206,7 @@ function App() {
       }
       setIsModalOpen(false);
     } catch (e) {
-      alert("Erro ao salvar projeto na AWS.");
+      alert("Erro ao salvar projeto no Firestore.");
     }
   };
 
@@ -238,7 +238,7 @@ function App() {
       const updatedRdos = rdos.filter(r => !relatedTeamIds.includes(r.teamId));
       setRdos(updatedRdos);
     } catch (e) {
-      alert("Erro ao excluir dados da AWS.");
+      alert("Erro ao excluir dados do Firestore.");
     }
   };
 
@@ -269,7 +269,7 @@ function App() {
       }
       setIsModalOpen(false);
     } catch (e) {
-      alert("Erro ao salvar equipe na AWS.");
+      alert("Erro ao salvar equipe no Firestore.");
     }
   };
 
@@ -278,7 +278,7 @@ function App() {
       await db.saveTeam(updatedTeam);
       setTeams(prev => prev.map(t => t.id === updatedTeam.id ? updatedTeam : t));
     } catch (e) {
-      alert("Erro ao atualizar equipe na AWS.");
+      alert("Erro ao atualizar equipe no Firestore.");
     }
   };
 
@@ -299,7 +299,7 @@ function App() {
       const updatedRdos = rdos.filter(r => r.teamId !== id);
       setRdos(updatedRdos);
     } catch (e) {
-      alert("Erro ao excluir equipe na AWS.");
+      alert("Erro ao excluir equipe no Firestore.");
     }
   };
 
@@ -313,7 +313,7 @@ function App() {
       setRdos(updated);
       if (currentRDO?.id === id) setCurrentRDO(null);
     } catch (e) {
-      alert("Erro ao excluir RDO na AWS.");
+      alert("Erro ao excluir RDO no Firestore.");
     }
   };
 

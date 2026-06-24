@@ -42,7 +42,7 @@ import {
   normalizeItemName,
   getRdoMonthKey
 } from '../utils/histogramUtils';
-import * as db from '../services/dbService';
+import * as db from '../services/firestoreService';
 import { exportRDOsToExcel } from '../utils/excelExportUtils';
 
 interface HistogramAnalysisProps {

@@ -3,7 +3,7 @@ import { Upload, CheckCircle, AlertTriangle, XCircle, FileText, Save, Trash2, Re
 import { Project } from '../../types';
 import { CompositionAIExtractionResult, CompositionItem, CompositionType } from '../../src/analytics/types/analyticsTypes';
 import { extractCompositionsFromPDF } from '../../src/services/compositionAIService';
-import { saveCompositions, getCompositions, deleteCompositions } from '../../services/dbService';
+import { saveCompositions, getCompositions, deleteCompositions } from '../../services/firestoreService';
 
 interface CompositionsUploadProps {
   selectedProject: Project;
