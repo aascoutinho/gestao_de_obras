@@ -11,12 +11,12 @@
  *   - Nenhuma breaking change introduzida
  *
  * Coleções Firestore:
- *   projects      → substitui DynamoDB Obras_Projects
- *   teams         → substitui DynamoDB Obras_Teams
- *   rdos          → substitui DynamoDB Obras_RDOs
- *   histograms    → substitui DynamoDB Obras_Histograms
- *   dimensions    → substitui DynamoDB Obras_Dimensions
- *   compositions  → substitui DynamoDB Obras_Compositions
+ *   projects      → substitui DynamoDB Obras_Projects (agora construction_projects)
+ *   teams         → substitui DynamoDB Obras_Teams (agora construction_teams)
+ *   rdos          → substitui DynamoDB Obras_RDOs (agora construction_rdos)
+ *   histograms    → substitui DynamoDB Obras_Histograms (agora construction_histograms)
+ *   dimensions    → substitui DynamoDB Obras_Dimensions (agora construction_dimensions)
+ *   compositions  → substitui DynamoDB Obras_Compositions (agora construction_compositions)
  *
  * Dependência: services/firebase.ts (instância `db` do Firestore SDK v10+)
  */
@@ -44,21 +44,14 @@ import {
 // Nomes das coleções Firestore
 // ---------------------------------------------------------------------------
 
-const COLLECTIONS = {
-  PROJECTS:     "projects",
-  TEAMS:        "teams",
-  RDOS:         "rdos",
-  HISTOGRAMS:   "histograms",
-  DIMENSIONS:   "dimensions",
-  COMPOSITIONS: "compositions",
-} as const;
+import { COLLECTIONS } from "../src/constants/firestoreCollections";
 
 // ===========================================================================
 // Project Operations
 // ===========================================================================
 
 /**
- * Retorna todos os projetos da coleção `projects`.
+ * Retorna todos os projetos da coleção `construction_projects`.
  * Equivalente DynamoDB: ScanCommand → Obras_Projects
  */
 export const getProjects = async (): Promise<Project[]> => {
@@ -87,7 +80,7 @@ export const deleteProject = async (id: string): Promise<void> => {
 // ===========================================================================
 
 /**
- * Retorna todas as equipes da coleção `teams`.
+ * Retorna todas as equipes da coleção `construction_teams`.
  * Equivalente DynamoDB: ScanCommand → Obras_Teams
  */
 export const getTeams = async (): Promise<Team[]> => {
@@ -116,7 +109,7 @@ export const deleteTeam = async (id: string): Promise<void> => {
 // ===========================================================================
 
 /**
- * Retorna todos os RDOs da coleção `rdos`.
+ * Retorna todos os RDOs da coleção `construction_rdos`.
  * Equivalente DynamoDB: ScanCommand → Obras_RDOs
  */
 export const getRdos = async (): Promise<RDOData[]> => {
@@ -251,7 +244,7 @@ export const deleteHistograms = async (projectId: string): Promise<void> => {
 // ===========================================================================
 
 /**
- * Persiste as dimensões de uma obra no Firestore (coleção `dimensions`).
+ * Persiste as dimensões de uma obra no Firestore (coleção `construction_dimensions`).
  * Estratégia: setDoc com Document ID = projectId (substitui o registro anterior).
  * Sempre persiste no localStorage como cache local antes de gravar no Firestore.
  *
@@ -326,7 +319,7 @@ export const deleteDimensions = async (projectId: string): Promise<void> => {
 // ===========================================================================
 
 /**
- * Persiste as composições de IA de uma obra no Firestore (coleção `compositions`).
+ * Persiste as composições de IA de uma obra no Firestore (coleção `construction_compositions`).
  * Document ID = projectId. Dual-write com localStorage.
  *
  * Equivalente DynamoDB: PutCommand → Obras_Compositions Key: { projectId }

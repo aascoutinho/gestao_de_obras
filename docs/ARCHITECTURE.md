@@ -140,7 +140,7 @@ Usuário (UI Action)
   └── App.tsx handler (ex: handleSaveProject)
         └── db.saveProject(project)
               └── firestoreService.ts
-                    └── setDoc(doc(db, 'projects', id), project)
+                    └── setDoc(doc(db, 'construction_projects', id), project)
                           └── Firestore (GCP)
                                 └── Coluna projects/{id}
 ```
@@ -176,12 +176,12 @@ DimensionsUpload.tsx / CompositionsUpload.tsx
 
 | Coleção | Document ID | Descrição |
 |---|---|---|
-| `projects` | `project.id` (UUID) | Cadastro de obras |
-| `teams` | `team.id` (UUID) | Equipes por obra |
-| `rdos` | `rdo.id` (UUID) | Relatórios diários |
-| `histograms` | `item.id` (UUID) | Itens do histograma por obra |
-| `dimensions` | `projectId` | Dimensões contratuais (1 doc/obra) |
-| `compositions` | `projectId` | Composições de IA (1 doc/obra) |
+| `construction_projects` | `project.id` (UUID) | Cadastro de obras |
+| `construction_teams` | `team.id` (UUID) | Equipes por obra |
+| `construction_rdos` | `rdo.id` (UUID) | Relatórios diários |
+| `construction_histograms` | `item.id` (UUID) | Itens do histograma por obra |
+| `construction_dimensions` | `projectId` | Dimensões contratuais (1 doc/obra) |
+| `construction_compositions` | `projectId` | Composições de IA (1 doc/obra) |
 
 ### 4.2 Exemplo de Documento — Project
 
@@ -212,7 +212,7 @@ DimensionsUpload.tsx / CompositionsUpload.tsx
 | Listar projetos | `getDocs(collection)` | Full scan |
 | Listar RDOs por equipe | `query(where('teamId', '==', id))` | Filtro simples |
 | Listar histogramas por obra | `query(where('projectId', '==', id))` | Filtro simples |
-| Buscar dimensões | `getDoc(doc('dimensions', projectId))` | Documento único |
+| Buscar dimensões | `getDoc(doc(db, 'construction_dimensions', projectId))` | Documento único |
 | Salvar em lote | `writeBatch` (chunks de 500) | Operação atômica por lote |
 
 ### 4.4 Security Rules (Configurar no Firebase Console)
