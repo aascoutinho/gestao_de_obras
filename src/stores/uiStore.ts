@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { Project, Team } from '../../types';
 
 export type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'CONTRACT_INTELLIGENCE' | 'PLANNING';
@@ -124,7 +125,7 @@ export const useUiStore = create<UiState>((set) => ({
 }));
 
 // Selectors
-export const useUiState = () => useUiStore((state) => ({
+export const useUiState = () => useUiStore(useShallow((state) => ({
   activeMenu: state.activeMenu,
   currentView: state.currentView,
   projectTab: state.projectTab,
@@ -136,15 +137,15 @@ export const useUiState = () => useUiStore((state) => ({
   editingItemId: state.editingItemId,
   newItemName: state.newItemName,
   newItemRegional: state.newItemRegional
-}));
+})));
 
-export const useUiFilters = () => useUiStore((state) => ({
+export const useUiFilters = () => useUiStore(useShallow((state) => ({
   filterMes: state.filterMes,
   filterStartDate: state.filterStartDate,
   filterEndDate: state.filterEndDate,
   filterRegional: state.filterRegional,
   filterProject: state.filterProject,
   filterTeam: state.filterTeam
-}));
+})));
 
 export const useUiActions = () => useUiStore((state) => state.actions);
