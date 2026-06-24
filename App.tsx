@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { read, utils } from 'xlsx';
 import { extractRDOData, fileToBase64 } from './services/geminiService';
-import { RDOData, Project, Team, ServiceItem } from './types';
+import { RDOData, Project, Team, ServiceItem, DailyPlan } from './types';
 import { InfoCards } from './components/InfoCards';
 import { FinancialTable } from './components/FinancialTable';
 import { ProjectList } from './components/ProjectList';
@@ -22,17 +22,20 @@ import { RDOList } from './components/RDOList';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { ProjectServices } from './components/ProjectServices';
 import { RDODetail } from './components/RDODetail';
-import { ProductionPriceTable } from './components/ProductionPriceTable';
-import { HistogramAnalysis } from './components/HistogramAnalysis';
 import ContractIntelligencePage from './components/ContractIntelligence/ContractIntelligencePage';
+import { DailyBreakdownTable } from './components/DailyBreakdownTable';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
+import { PlanningTab } from './components/PlanningTab';
 import * as db from './services/dbService';
+import { getDailyPlans, saveDailyPlans } from './services/dailyPlanService';
+import { getContractData, saveContractData } from './services/contractDataService';
+import { ContractData } from './types';
 
 // --- Local Storage Keys ---
 const STORAGE_PROJECT_SYNCED = 'rdo_projects_aws_synced';
 
-type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'HISTOGRAM' | 'CONTRACT_INTELLIGENCE';
+type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'CONTRACT_INTELLIGENCE' | 'PLANNING';
 type ViewState = 'PROJECT_LIST' | 'TEAMS_LIST' | 'RDO_LIST' | 'UPLOAD_ANALYSIS';
 type ProjectTab = 'TEAMS' | 'SERVICES';
 
@@ -41,6 +44,8 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [rdos, setRdos] = useState<RDOData[]>([]);
+  const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
+  const [contractDataMap, setContractDataMap] = useState<Record<string, ContractData>>({});
 
   // --- Navigation/Selection State ---
   const [activeMenu, setActiveMenu] = useState<MainMenu>('DASHBOARD');
@@ -65,10 +70,13 @@ function App() {
   // Form States
   const [newItemName, setNewItemName] = useState('');
   const [newItemRegional, setNewItemRegional] = useState(''); 
+  const [newItemBudget, setNewItemBudget] = useState('');
+  const [newItemForecast, setNewItemForecast] = useState('');
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // --- Dashboard Filter State ---
+  const [filterMes, setFilterMes] = useState('all');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterRegional, setFilterRegional] = useState('all');
@@ -119,6 +127,15 @@ function App() {
         setProjects(currentProjects);
         setTeams(currentTeams);
         setRdos(currentRdos);
+        // Load daily plans from localStorage (always local)
+        setDailyPlans(getDailyPlans());
+        // Load contract data for all projects from localStorage
+        const cdMap: Record<string, ContractData> = {};
+        for (const p of currentProjects) {
+          const cd = getContractData(p.id);
+          if (cd) cdMap[p.id] = cd;
+        }
+        setContractDataMap(cdMap);
       } catch (e) {
         console.error("Error loading AWS data", e);
         setError("Erro ao carregar dados da nuvem. Verifique sua conexão e chaves AWS.");
@@ -137,6 +154,8 @@ function App() {
     setIsEditMode(false);
     setNewItemName('');
     setNewItemRegional('');
+    setNewItemBudget('');
+    setNewItemForecast('');
     setIsModalOpen(true);
   };
 
@@ -146,6 +165,11 @@ function App() {
     setNewItemName(item.name);
     if (type === 'PROJECT') {
       setNewItemRegional((item as Project).regional || '');
+      setNewItemBudget(String((item as Project).budgetValue || ''));
+      setNewItemForecast(String((item as Project).forecastValue || ''));
+    } else {
+      setNewItemBudget(String((item as Team).budgetValue || ''));
+      setNewItemForecast(String((item as Team).forecastValue || ''));
     }
     setIsModalOpen(true);
   };
@@ -156,7 +180,13 @@ function App() {
     try {
       if (isEditMode && editingItemId) {
         const updatedProjects = projects.map(p => 
-          p.id === editingItemId ? { ...p, name: newItemName, regional: newItemRegional } : p
+          p.id === editingItemId ? { 
+            ...p, 
+            name: newItemName, 
+            regional: newItemRegional,
+            budgetValue: newItemBudget ? Number(newItemBudget) : undefined,
+            forecastValue: newItemForecast ? Number(newItemForecast) : undefined
+          } : p
         );
         const projectToUpdate = updatedProjects.find(p => p.id === editingItemId);
         if (projectToUpdate) await db.saveProject(projectToUpdate);
@@ -166,6 +196,8 @@ function App() {
           id: generateUUID(),
           name: newItemName,
           regional: newItemRegional,
+          budgetValue: newItemBudget ? Number(newItemBudget) : undefined,
+          forecastValue: newItemForecast ? Number(newItemForecast) : undefined,
           createdAt: new Date().toISOString(),
           services: []
         };
@@ -216,7 +248,11 @@ function App() {
     try {
       if (isEditMode && editingItemId) {
         const updatedTeams = teams.map(t => 
-          t.id === editingItemId ? { ...t, name: newItemName } : t
+          t.id === editingItemId ? { 
+            ...t, 
+            name: newItemName
+            // budgetValue and forecastValue are removed from the modal for teams
+          } : t
         );
         const teamToUpdate = updatedTeams.find(t => t.id === editingItemId);
         if (teamToUpdate) await db.saveTeam(teamToUpdate);
@@ -234,6 +270,15 @@ function App() {
       setIsModalOpen(false);
     } catch (e) {
       alert("Erro ao salvar equipe na AWS.");
+    }
+  };
+
+  const handleUpdateTeamData = async (updatedTeam: Team) => {
+    try {
+      await db.saveTeam(updatedTeam);
+      setTeams(prev => prev.map(t => t.id === updatedTeam.id ? updatedTeam : t));
+    } catch (e) {
+      alert("Erro ao atualizar equipe na AWS.");
     }
   };
 
@@ -371,21 +416,24 @@ function App() {
     if (currentView === 'UPLOAD_ANALYSIS') setCurrentView('RDO_LIST');
   };
 
-  const navigateToAnalysis = () => {
-    setActiveMenu('ANALYSIS');
-    setSelectedProject(null); // Como solicitado: sempre abrir tela limpa
-    setCurrentRDO(null);
-  };
-
-  const navigateToHistogram = () => {
-    setActiveMenu('HISTOGRAM');
-    // We keep the selected project if exists, or allow user to pick
-    setCurrentRDO(null);
-  };
-
   const navigateToContractIntelligence = () => {
     setActiveMenu('CONTRACT_INTELLIGENCE');
     setCurrentRDO(null);
+  };
+
+  const navigateToPlanning = () => {
+    setActiveMenu('PLANNING');
+    setCurrentRDO(null);
+  };
+
+  const handleSaveDailyPlans = (updated: DailyPlan[]) => {
+    saveDailyPlans(updated);
+    setDailyPlans(updated);
+  };
+
+  const handleSaveContractData = (data: ContractData) => {
+    saveContractData(data);
+    setContractDataMap(prev => ({ ...prev, [data.projectId]: data }));
   };
 
   // --- Analysis & Upload Handlers ---
@@ -502,30 +550,6 @@ function App() {
           </button>
 
           <button
-            onClick={navigateToAnalysis}
-            className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
-              activeMenu === 'ANALYSIS' 
-                ? 'bg-gradient-premium text-white shadow-xl shadow-blue-600/20 scale-[1.02]' 
-                : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <BarChart2 className="w-5 h-5" />
-            <span className="font-semibold text-sm">Produção / Preços</span>
-          </button>
-
-          <button
-            onClick={navigateToHistogram}
-            className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
-              activeMenu === 'HISTOGRAM' 
-                ? 'bg-gradient-premium text-white shadow-xl shadow-blue-600/20 scale-[1.02]' 
-                : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <FileSpreadsheet className="w-5 h-5" />
-            <span className="font-semibold text-sm">Histograma</span>
-          </button>
-
-          <button
             onClick={navigateToContractIntelligence}
             className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
               activeMenu === 'CONTRACT_INTELLIGENCE' 
@@ -535,6 +559,18 @@ function App() {
           >
             <FileText className="w-5 h-5" />
             <span className="font-semibold text-sm">Inteligência Contratual</span>
+          </button>
+
+          <button
+            onClick={navigateToPlanning}
+            className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all duration-300 ${
+              activeMenu === 'PLANNING' 
+                ? 'bg-gradient-premium text-white shadow-xl shadow-blue-600/20 scale-[1.02]' 
+                : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <ClipboardList className="w-5 h-5" />
+            <span className="font-semibold text-sm">Planejamento</span>
           </button>
         </nav>
 
@@ -557,6 +593,23 @@ function App() {
     
     const filteredRdos = useMemo(() => {
       let result = rdos;
+
+      if (filterMes !== 'all') {
+        result = result.filter(r => {
+           const team = teams.find(t => t.id === r.teamId);
+           if (!team) return false;
+           const cData = contractDataMap[team.projectId];
+           if (!cData || !cData.monthlyEntries) return false;
+           
+           const entry = cData.monthlyEntries.find(e => e.name === filterMes);
+           if (!entry) return false;
+           
+           const rDate = parseDate(r.date);
+           const start = new Date(entry.startDate + 'T00:00:00');
+           const end = new Date(entry.endDate + 'T23:59:59');
+           return rDate >= start && rDate <= end;
+        });
+      }
 
       if (filterStartDate) {
         result = result.filter(r => {
@@ -589,7 +642,7 @@ function App() {
       }
 
       return result;
-    }, [rdos, filterStartDate, filterEndDate, filterRegional, filterProject, filterTeam, teams, projects]);
+    }, [rdos, filterMes, filterStartDate, filterEndDate, filterRegional, filterProject, filterTeam, teams, projects, contractDataMap]);
 
     const latestRdo = [...filteredRdos].sort((a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime())[0];
     
@@ -662,12 +715,37 @@ function App() {
     const availableProjects = projects.filter(p => filterRegional === 'all' || (p.regional || 'Sem Regional') === filterRegional);
     const filteredProjectsToPass = availableProjects.filter(p => filterProject === 'all' || p.id === filterProject);
 
+    const availableMeses = useMemo(() => {
+      const nameStartDates = new Map<string, string>();
+      Object.values(contractDataMap).forEach(cd => {
+        cd.monthlyEntries?.forEach(entry => {
+           if (!nameStartDates.has(entry.name) || entry.startDate < nameStartDates.get(entry.name)!) {
+              nameStartDates.set(entry.name, entry.startDate);
+           }
+        });
+      });
+      return Array.from(nameStartDates.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(e => e[0]);
+    }, [contractDataMap]);
+
     return (
       <div className="animate-fade-in space-y-8">
         <div className="glass-panel p-6 rounded-3xl border border-white/5 flex flex-col md:flex-row gap-6 items-end md:items-center justify-between shadow-2xl shadow-blue-900/10">
-           <div className="flex flex-col md:flex-row gap-6 w-full">
+            <div className="flex flex-col md:flex-row gap-6 w-full">
+              <div className="flex flex-col gap-2 w-full md:w-52">
+                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mês (Medição)</label>
+                 <select 
+                   value={filterMes} 
+                   onChange={e => { setFilterMes(e.target.value); setFilterStartDate(''); setFilterEndDate(''); }}
+                   className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-emerald-400 font-semibold focus:ring-2 focus:ring-blue-500/50 outline-none transition-all appearance-none cursor-pointer"
+                 >
+                   <option value="all" className="bg-slate-900 text-slate-300">Todos</option>
+                   {availableMeses.map(m => <option key={m} value={m} className="bg-slate-900">{m}</option>)}
+                 </select>
+              </div>
               <div className="flex flex-col gap-2 w-full md:w-auto">
-                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">De</label>
+                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">De (Opcional)</label>
                  <input 
                    type="date" 
                    value={filterStartDate} 
@@ -741,7 +819,25 @@ function App() {
           </p>
         </div>
 
-        <FinancialTable filteredRdos={filteredRdos} projects={filteredProjectsToPass} teams={teams} />
+        <FinancialTable
+          contractDataMap={contractDataMap}
+          filteredRdos={filteredRdos}
+          projects={filteredProjectsToPass}
+          teams={teams}
+          dailyPlans={dailyPlans}
+          filterStartDate={filterStartDate}
+          filterEndDate={filterEndDate}
+          filterMesName={filterMes}
+        />
+
+        <DailyBreakdownTable
+          filteredRdos={filteredRdos}
+          projects={filteredProjectsToPass}
+          teams={teams}
+          dailyPlans={dailyPlans}
+          filterStartDate={filterStartDate}
+          filterEndDate={filterEndDate}
+        />
       </div>
     );
   };
@@ -769,13 +865,15 @@ function App() {
         </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-10 relative z-10 custom-scrollbar">
            {activeMenu === 'DASHBOARD' && <FinancialDashboard />}
-           {activeMenu === 'HISTOGRAM' && (
-             <HistogramAnalysis 
-               projects={projects} 
+           {activeMenu === 'PLANNING' && (
+             <PlanningTab
+               projects={projects}
                teams={teams}
-               rdos={rdos} 
-               selectedProject={selectedProject}
-               onSelectProject={setSelectedProject}
+               dailyPlans={dailyPlans}
+               onSave={handleSaveDailyPlans}
+               contractDataMap={contractDataMap}
+               onSaveContractData={handleSaveContractData}
+               onUpdateTeam={handleUpdateTeamData}
              />
            )}
            {activeMenu === 'PROJECTS' && (
@@ -914,17 +1012,6 @@ function App() {
                )}
              </>
             )}
-            {activeMenu === 'ANALYSIS' && (
-              <ProductionPriceTable 
-                projects={projects} 
-                rdos={rdos} 
-                teams={teams} 
-                filterRegional={filterRegional} 
-                setFilterRegional={setFilterRegional} 
-                filterProject={filterProject}
-                setFilterProject={setFilterProject}
-              />
-            )}
             {activeMenu === 'CONTRACT_INTELLIGENCE' && (
               <ContractIntelligencePage 
                 projects={projects}
@@ -950,6 +1037,18 @@ function App() {
               </div>
               {currentView === 'PROJECT_LIST' && (
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Regional</label><input type="text" value={newItemRegional} onChange={(e) => setNewItemRegional(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800" /></div>
+              )}
+              {currentView === 'PROJECT_LIST' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Budget (R$)</label>
+                    <input type="number" step="0.01" value={newItemBudget} onChange={(e) => setNewItemBudget(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Forecast (R$)</label>
+                    <input type="number" step="0.01" value={newItemForecast} onChange={(e) => setNewItemForecast(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-900" placeholder="0.00" />
+                  </div>
+                </div>
               )}
             </div>
             <div className="flex justify-end gap-3">

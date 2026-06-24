@@ -44,7 +44,7 @@ export function buildIdlenessFacts(params: BuildIdlenessFactsParams): { facts: I
 
     // Busca o RDO correspondente pela data para pegar os recursos do dia
     // (Em um sistema real mais complexo, cruzaríamos pelo ID do RDO/Equipe)
-    const rdo = rdos.find(r => r.date === occ.date && r.projectId === occ.projectId);
+    const rdo = rdos.find(r => r.date === occ.date && (!r.projectId || r.projectId === occ.projectId));
     
     if (!rdo) {
       warnings.push(`RDO não encontrado para a ocorrência na data ${occ.date}`);

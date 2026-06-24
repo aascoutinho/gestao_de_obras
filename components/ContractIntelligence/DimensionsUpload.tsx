@@ -358,6 +358,9 @@ export function DimensionsUpload({ selectedProject, onDimensionsSaved }: Dimensi
           {Object.keys(result.metadata).length > 0 && (
             <SectionCard title="🏗️ Metadados da Obra">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                {result.metadata.nomeObra && (
+                  <MetaField label="Obra" value={result.metadata.nomeObra} />
+                )}
                 {result.metadata.contrato && (
                   <MetaField label="Contrato" value={result.metadata.contrato} />
                 )}

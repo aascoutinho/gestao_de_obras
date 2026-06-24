@@ -27,9 +27,9 @@ import { RDOList } from './components/RDOList';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { ProjectServices } from './components/ProjectServices';
 import { RDODetail } from './components/RDODetail';
-import { ProductionAnalysis } from './components/ProductionAnalysis';
+import { ProductionPriceTable } from './components/ProductionPriceTable';
 import ContractIntelligencePage from './components/ContractIntelligence/ContractIntelligencePage';
-import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal } from './utils';
+import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
 import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
 import * as db from './services/dbService';
 
@@ -167,7 +167,7 @@ function App() {
         setProjects(updatedProjects);
       } else {
         const newProject: Project = {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: newItemName,
           regional: newItemRegional,
           createdAt: new Date().toISOString(),
@@ -227,7 +227,7 @@ function App() {
         setTeams(updatedTeams);
       } else {
         const newTeam: Team = {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           projectId: selectedProject.id,
           name: newItemName,
           createdAt: new Date().toISOString()
@@ -994,21 +994,14 @@ function App() {
              </>
             )}
             {activeMenu === 'ANALYSIS' && (
-              <ProductionAnalysis 
+              <ProductionPriceTable 
                 projects={projects} 
                 rdos={rdos} 
                 teams={teams} 
-                filterStartDate={filterStartDate} 
-                setFilterStartDate={setFilterStartDate} 
-                filterEndDate={filterEndDate} 
-                setFilterEndDate={setFilterEndDate} 
                 filterRegional={filterRegional} 
                 setFilterRegional={setFilterRegional} 
                 filterProject={filterProject}
                 setFilterProject={setFilterProject}
-                filterTeam={filterTeam}
-                setFilterTeam={setFilterTeam}
-                onOpenRdoDetail={handleOpenRdoFromAnalysis}
               />
             )}
             {activeMenu === 'CONTRACT_INTELLIGENCE' && (

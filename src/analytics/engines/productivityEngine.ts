@@ -20,6 +20,7 @@ export interface BuildProductivityFactsParams {
   projectId: string;
   rdos: RDOData[];
   compositions: CompositionImportResult | null;
+  projectServices?: import('../../../types').ServiceItem[];
 }
 
 export interface ProductivityFactsResult {
@@ -55,7 +56,7 @@ export function buildProductivityFacts(
       let actualProductivityPerHour = 0;
       let unit = 'UN';
 
-      const { composition } = matchActivityToComposition(activity, compositions);
+      const { composition } = matchActivityToComposition(activity, compositions, params.projectServices);
 
       if (composition) {
         unit = composition.unit || unit;

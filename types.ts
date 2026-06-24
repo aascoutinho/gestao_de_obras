@@ -1,4 +1,59 @@
-export type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'ANALYSIS' | 'HISTOGRAM';
+export type MainMenu = 'DASHBOARD' | 'PROJECTS' | 'CONTRACT_INTELLIGENCE' | 'PLANNING';
+
+/**
+ * Valor de planejamento inserido pelo engenheiro para uma equipe em uma data específica.
+ * Esses valores alimentam as colunas "Planejado Mês", "Planejado Período" e "Projetado"
+ * no Painel Geral.
+ */
+export interface DailyPlan {
+  id: string;          // UUID — "<projectId>_<teamId>_<date>"
+  projectId: string;   // ID da obra (CC)
+  teamId: string;      // ID da equipe
+  date: string;        // "YYYY-MM-DD"
+  value: number;       // Valor planejado em R$
+  updatedAt: string;
+}
+
+// ─── Contract Data Types ───────────────────────────────────────────────────────
+
+/** Tipos de aditivo contratual */
+export type AddendumType = 'TIME' | 'VALUE' | 'TIME_AND_VALUE';
+
+/** Representa um aditivo contratual (prazo, valor ou ambos) */
+export interface ContractAddendum {
+  id: string;
+  type: AddendumType;
+  description: string;
+  addedDays?: number;    // Dias adicionados (aditivos de tempo)
+  addedValue?: number;   // Valor adicional em R$ (aditivos de valor)
+  approvedAt: string;    // "YYYY-MM-DD"
+  createdAt: string;
+}
+
+/** Período customizado de medição (substitui o conceito de mês calendário fixo) */
+export interface MonthlyBudgetEntry {
+  id: string;        // UUID
+  name: string;      // Nome customizado do período (ex: "Medição 01 - Junho")
+  startDate: string; // Data inicial "YYYY-MM-DD"
+  endDate: string;   // Data final "YYYY-MM-DD"
+  monthKey?: string; // Legacy: mantido apenas para migração de dados antigos
+  budget: number;
+  forecast: number;
+  measured: number;
+  teamAllocations?: { teamId: string; budgetPct: number; forecastPct: number }[];
+}
+
+/** Dados financeiros e contratuais de uma obra */
+export interface ContractData {
+  projectId: string;
+  contractValue: number;         // Valor original do contrato
+  contractStartDate: string;     // "YYYY-MM-DD"
+  contractEndDate: string;       // "YYYY-MM-DD" — término original
+  monthlyEntries: MonthlyBudgetEntry[];
+  addenda: ContractAddendum[];
+  updatedAt: string;
+}
+
 
 export interface Project {
   id: string;
@@ -30,6 +85,10 @@ export interface Team {
   name: string;
   leader?: string;
   membersCount?: number;
+  budgetValue?: number;
+  forecastValue?: number;
+  budgetPct?: number;
+  forecastPct?: number;
   createdAt: string;
 }
 

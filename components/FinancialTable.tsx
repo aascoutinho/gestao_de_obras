@@ -1,75 +1,319 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Building2, HardHat, Users, DollarSign, Target, Activity } from 'lucide-react';
-import { Project, Team, RDOData } from '../types';
+import { ChevronRight, ChevronDown } from 'lucide-react';
+import { Project, Team, RDOData, DailyPlan } from '../types';
 import { formatMoney, calculateRDOTotal } from '../utils';
+import { sumPlansForTeamMonth, sumPlansForTeamPeriod } from '../services/dailyPlanService';
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface FinancialTableProps {
   filteredRdos: RDOData[];
   projects: Project[];
   teams: Team[];
+  /** Planejamentos diários por equipe — alimenta as colunas de planejamento */
+  dailyPlans?: DailyPlan[];
+  /** ISO 'YYYY-MM-DD' — "De" filter (início do período programado) */
+  filterStartDate?: string;
+  filterEndDate?: string;
+  filterMesName?: string;
+  contractDataMap?: Record<string, import('../types').ContractData>;
 }
+
+// ─── Data Node Types ──────────────────────────────────────────────────────────
 
 interface TeamNode {
   id: string;
   name: string;
-  totalRdo: number;
-}
-
-interface ProjectNode {
-  id: string;
-  name: string;
-  code?: string;
+  // Mês vigente
   budget: number;
   forecast: number;
-  totalRdo: number;
+  plannedMonth: number;
+  // Período programado pelo engenheiro
+  plannedPeriod: number;
+  realized: number;
+  // Projeção restante (planejado do mês - realizado, se positivo)
+  projected: number;
+}
+
+interface ProjectNode extends TeamNode {
   teams: TeamNode[];
 }
 
 interface RegionalNode {
   name: string;
-  totalRdo: number;
+  budget: number;
+  forecast: number;
+  plannedMonth: number;
+  plannedPeriod: number;
+  realized: number;
+  projected: number;
   projects: ProjectNode[];
 }
 
-export const FinancialTable: React.FC<FinancialTableProps> = ({ filteredRdos, projects, teams }) => {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+interface RootNode {
+  name: string;
+  budget: number;
+  forecast: number;
+  plannedMonth: number;
+  plannedPeriod: number;
+  realized: number;
+  projected: number;
+  regionals: RegionalNode[];
+}
 
-  const toggleProject = (projectId: string) => {
-    const newExpanded = new Set(expandedProjects);
-    if (newExpanded.has(projectId)) {
-      newExpanded.delete(projectId);
-    } else {
-      newExpanded.add(projectId);
-    }
-    setExpandedProjects(newExpanded);
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+const fmt = (v: number): string => {
+  if (v === 0) return 'R$ -';
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+};
+
+const fmtPct = (v: number): string =>
+  `${v.toFixed(2).replace('.', ',')}%`;
+
+const isoToDisplay = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+const isoToShort = (iso: string): string => {
+  if (!iso) return '';
+  const [, m, d] = iso.split('-');
+  return `${d}/${m}`;
+};
+
+// ─── Cell classes ─────────────────────────────────────────────────────────────
+
+const diffClass = (val: number) => {
+  if (val > 0) return 'text-emerald-400';
+  if (val < 0) return 'text-red-400';
+  return 'text-slate-300';
+};
+
+const diffBg = (val: number) => {
+  if (val > 0) return 'bg-emerald-500/10';
+  if (val < 0) return 'bg-red-500/10';
+  return '';
+};
+
+const pctBadge = (val: number) => {
+  if (val >= 5)  return 'bg-emerald-600/80 text-white font-bold';
+  if (val < 0)   return 'bg-red-600/80 text-white font-bold';
+  return 'text-slate-300';
+};
+
+// ─── Row level styles ─────────────────────────────────────────────────────────
+
+type RowLevel = 'root' | 'regional' | 'project' | 'team';
+
+const levelStyle: Record<RowLevel, string> = {
+  root:     'bg-slate-800/90 border-l-4 border-l-blue-500 font-bold text-white',
+  regional: 'bg-slate-800/60 border-l-4 border-l-cyan-400 font-semibold text-white',
+  project:  'bg-slate-900/60 border-l-4 border-l-indigo-400/60 font-medium text-slate-200',
+  team:     'bg-slate-900/20 border-l-4 border-l-slate-600 font-normal text-slate-300',
+};
+
+const levelIndent: Record<RowLevel, string> = {
+  root:     'pl-3',
+  regional: 'pl-6',
+  project:  'pl-10',
+  team:     'pl-14',
+};
+
+// ─── TableRow ─────────────────────────────────────────────────────────────────
+
+interface RowData {
+  id: string;
+  name: string;
+  level: RowLevel;
+  budget: number;
+  forecast: number;
+  /** Planejado para o mês vigente inteiro */
+  plannedMonth: number;
+  /** Planejado pelo engenheiro para o período De→Até */
+  plannedPeriod: number;
+  /** Realizado no período De→Até */
+  realized: number;
+  /**
+   * Projeção restante do engenheiro para o mês:
+   * = plannedMonth - realized (se positivo), i.e. o que ainda falta executar
+   */
+  projected: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  onToggle?: () => void;
+}
+
+const TableRow: React.FC<RowData> = ({
+  name, level,
+  budget, forecast, plannedMonth,
+  plannedPeriod, realized, projected,
+  hasChildren, isExpanded, onToggle,
+}) => {
+
+  // ── Grupo 2 – Período programado ──────────────────────────────────────────
+  // Diferença = Realizado − Planejado período
+  const diffPeriod = realized - plannedPeriod;
+  const pctPeriod  = plannedPeriod > 0 ? (diffPeriod / plannedPeriod) * 100 : 0;
+
+  // ── Grupo 3 – Projeção do mês ─────────────────────────────────────────────
+  // Col 1: Projetado = projeções do engenheiro (o que ainda falta no mês)
+  // Col 2: Realizado + Projetado = realized + projected
+  // Col 3: Diferença = (Realizado + Projetado) − Planejado Mês
+  const realizadoMaisProjetado = realized + projected;
+  const diffMes  = realizadoMaisProjetado - plannedMonth;
+  const pctMes   = plannedMonth > 0 ? (diffMes / plannedMonth) * 100 : 0;
+
+  return (
+    <tr
+      className={`border-b border-white/5 transition-all duration-150 ${levelStyle[level]} ${onToggle ? 'cursor-pointer hover:brightness-110' : ''}`}
+      onClick={onToggle}
+    >
+      {/* ── Identificador ── */}
+      <td className={`py-2.5 pr-3 whitespace-nowrap text-xs ${levelIndent[level]}`}>
+        <span className="flex items-center gap-1.5">
+          {hasChildren && (
+            isExpanded
+              ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+              : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+          )}
+          {name}
+        </span>
+      </td>
+
+      {/* ── Grupo 1: Mês Vigente ── */}
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-300 whitespace-nowrap">
+        {fmt(budget)}
+      </td>
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-300 whitespace-nowrap">
+        {fmt(forecast)}
+      </td>
+      <td className={`py-2.5 px-3 text-xs text-right font-mono whitespace-nowrap border-r border-white/5 ${plannedMonth > 0 ? 'text-amber-300' : 'text-slate-300'}`}>
+        {fmt(plannedMonth)}
+      </td>
+
+      {/* ── Grupo 2: Período programado (De → Até) ── */}
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-300 whitespace-nowrap bg-blue-950/20">
+        {fmt(plannedPeriod)}
+      </td>
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-200 whitespace-nowrap bg-blue-950/20">
+        {fmt(realized)}
+      </td>
+      <td className={`py-2.5 px-3 text-xs text-right font-mono whitespace-nowrap bg-blue-950/20 ${diffClass(diffPeriod)} ${diffBg(diffPeriod)}`}>
+        {fmt(diffPeriod)}
+      </td>
+      <td className={`py-2.5 px-3 text-xs text-right whitespace-nowrap bg-blue-950/20 border-r border-white/5 rounded-sm ${pctBadge(pctPeriod)}`}>
+        {fmtPct(pctPeriod)}
+      </td>
+
+      {/* ── Grupo 3: Projeção do mês ── */}
+      {/* Col 1: Projeções restantes do engenheiro */}
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-300 whitespace-nowrap">
+        {fmt(projected)}
+      </td>
+      {/* Col 2: Realizado + Projetado */}
+      <td className="py-2.5 px-3 text-xs text-right font-mono text-slate-200 whitespace-nowrap">
+        {fmt(realizadoMaisProjetado)}
+      </td>
+      {/* Col 3: Diferença vs Planejado Mês */}
+      <td className={`py-2.5 px-3 text-xs text-right font-mono whitespace-nowrap ${diffClass(diffMes)} ${diffBg(diffMes)}`}>
+        {fmt(diffMes)}
+      </td>
+      {/* % vs Planejado Mês */}
+      <td className={`py-2.5 px-3 text-xs text-right whitespace-nowrap rounded-sm ${pctBadge(pctMes)}`}>
+        {fmtPct(pctMes)}
+      </td>
+    </tr>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+const isoToShortFn = isoToShort;
+
+export const FinancialTable: React.FC<FinancialTableProps> = ({
+  filteredRdos, projects, teams, dailyPlans = [],
+  filterStartDate = '', filterEndDate = '', filterMesName = 'all', contractDataMap = {},
+}) => {
+
+  const [expandedRegionals, setExpandedRegionals] = useState<Set<string>>(new Set(['all']));
+  const [expandedProjects,  setExpandedProjects]  = useState<Set<string>>(new Set());
+
+  // ─── Cabeçalhos dinâmicos ─────────────────────────────────────────────────
+  const hasDates = Boolean(filterStartDate && filterEndDate);
+
+  const startShort = hasDates ? isoToShortFn(filterStartDate) : '';
+  const endShort   = hasDates ? isoToShortFn(filterEndDate)   : '';
+  const startFull  = hasDates ? isoToDisplay(filterStartDate)  : '';
+  const endFull    = hasDates ? isoToDisplay(filterEndDate)    : '';
+
+  // Grupo 2 – cabeçalho azul do período
+  const periodGroupLabel  = hasDates ? `${startShort} → ${endShort}` : 'Período programado';
+  // Sub-col "Planejado período" do grupo 2
+  const plannedPeriodLabel = hasDates ? `${startFull} a ${endFull}` : 'Planejado';
+  // Grupo 3 – cabeçalho da projeção
+  const projGroupLabel    = hasDates ? `Projeção após ${endShort}` : 'Projeção do mês';
+  // Sub-col "Projetado" do grupo 3
+  const projColLabel      = hasDates ? `Após ${endShort}` : 'Projetado restante';
+
+  // ─── Toggle helper ────────────────────────────────────────────────────────
+  const toggle = (set: Set<string>, key: string, setter: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    next.has(key) ? next.delete(key) : next.add(key);
+    setter(next);
   };
 
-  const hierarchyData = useMemo(() => {
-    if (projects.length === 0) return [];
+  // ─── Resolve reference month ─────────────────────────────────────────────
+  // "Mês vigente" = mês do filterEndDate quando existe, senão mês atual
+  const refDate = useMemo(() => {
+    if (filterEndDate) {
+      const [y, m] = filterEndDate.split('-').map(Number);
+      return { year: y, month: m - 1 }; // month 0-indexed
+    }
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  }, [filterEndDate]);
 
-    const regionalsMap = new Map<string, RegionalNode>();
+  // Last day of the reference month as ISO string (for "projected" upper bound)
+  const lastDayISO = useMemo(() => {
+    const last = new Date(refDate.year, refDate.month + 1, 0);
+    const m = String(last.getMonth() + 1).padStart(2, '0');
+    const d = String(last.getDate()).padStart(2, '0');
+    return `${last.getFullYear()}-${m}-${d}`;
+  }, [refDate]);
 
-    // Primeiro, garantir que todas as obras (mesmo sem RDO) apareçam na sua respectiva regional
-    projects.forEach(project => {
-      const regionalName = project.regional || 'Sem Regional';
+  // ─── Build hierarchy ──────────────────────────────────────────────────────
+  const root = useMemo<RootNode | null>(() => {
+    if (projects.length === 0) return null;
 
-      if (!regionalsMap.has(regionalName)) {
-        regionalsMap.set(regionalName, { name: regionalName, totalRdo: 0, projects: [] });
+    const regMap = new Map<string, RegionalNode>();
+
+    // Seed with projects (even those with zero RDOs)
+    projects.forEach(p => {
+      const reg = p.regional || 'Sem Regional';
+      if (!regMap.has(reg)) {
+        regMap.set(reg, {
+          name: reg, budget: 0, forecast: 0,
+          plannedMonth: 0, plannedPeriod: 0, realized: 0, projected: 0,
+          projects: [],
+        });
       }
 
-      const regNode = regionalsMap.get(regionalName)!;
-
-      regNode.projects.push({
-        id: project.id,
-        name: project.name,
-        budget: project.budgetValue || 0,
-        forecast: project.forecastValue || 0,
-        totalRdo: 0,
-        teams: []
+      regMap.get(reg)!.projects.push({
+        id: p.id,
+        name: p.name,
+        budget:        0, // calculado abaixo
+        forecast:      0, // calculado abaixo
+        plannedMonth:  0,  // calculado abaixo a partir dos dailyPlans
+        plannedPeriod: 0,
+        realized:      0,
+        projected:     0,
+        teams: [],
       });
     });
 
-    // Em seguida, iteramos pelos RDOs filtrados para acumular os valores
+    // Accumulate realized from RDOs
     filteredRdos.forEach(rdo => {
       const team = teams.find(t => t.id === rdo.teamId);
       if (!team) return;
@@ -77,11 +321,9 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({ filteredRdos, pr
       if (!project) return;
 
       const rdoValue = calculateRDOTotal(rdo, project);
-      const regionalName = project.regional || 'Sem Regional';
-
-      const regNode = regionalsMap.get(regionalName);
+      const reg      = project.regional || 'Sem Regional';
+      const regNode  = regMap.get(reg);
       if (!regNode) return;
-
       const projNode = regNode.projects.find(p => p.id === project.id);
       if (!projNode) return;
 
@@ -90,246 +332,266 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({ filteredRdos, pr
         teamNode = {
           id: team.id,
           name: team.name,
-          totalRdo: 0
+          budget: 0, forecast: 0,
+          plannedMonth:  0,
+          plannedPeriod: 0,
+          realized:  0,
+          projected: 0,
         };
         projNode.teams.push(teamNode);
       }
 
-      teamNode.totalRdo += rdoValue;
-      projNode.totalRdo += rdoValue;
-      regNode.totalRdo += rdoValue;
+      teamNode.realized += rdoValue;
+      projNode.realized += rdoValue;
+      regNode.realized  += rdoValue;
     });
 
-    return Array.from(regionalsMap.values())
+    // ── Acumular valores de planejamento dos dailyPlans ──────────────────────
+    regMap.forEach(reg => {
+      reg.projects.forEach(proj => {
+        // Buscar budget e forecast do ContractData para este projeto primeiro
+        const cData = contractDataMap[proj.id];
+        let pBudget = 0;
+        let pForecast = 0;
+        let activePeriodStart = '';
+        let activePeriodEnd = '';
+
+        if (cData && cData.monthlyEntries && cData.monthlyEntries.length > 0) {
+          let targetPeriods = [];
+          if (filterMesName !== 'all') {
+             targetPeriods = cData.monthlyEntries.filter(pe => pe.name === filterMesName);
+          } else if (filterStartDate && filterEndDate) {
+            targetPeriods = cData.monthlyEntries.filter(pe => 
+              pe.startDate <= filterEndDate && pe.endDate >= filterStartDate
+            );
+          } else {
+            const todayISO = new Date().toISOString().slice(0, 10);
+            let active = cData.monthlyEntries.find(pe => pe.startDate <= todayISO && pe.endDate >= todayISO);
+            if (!active) {
+              active = cData.monthlyEntries[cData.monthlyEntries.length - 1];
+            }
+            if (active) targetPeriods = [active];
+          }
+          pBudget = targetPeriods.reduce((sum, pe) => sum + (pe.budget || 0), 0);
+          pForecast = targetPeriods.reduce((sum, pe) => sum + (pe.forecast || 0), 0);
+          
+          if (targetPeriods.length > 0) {
+            activePeriodStart = targetPeriods.map(p => p.startDate).sort()[0];
+            activePeriodEnd = targetPeriods.map(p => p.endDate).sort().reverse()[0];
+          }
+        } else {
+          // Fallback para valores do projeto caso não haja períodos cadastrados
+          const projectFallback = projects.find(p => p.id === proj.id);
+          pBudget = projectFallback?.budgetValue || 0;
+          pForecast = projectFallback?.forecastValue || 0;
+        }
+
+        proj.budget = pBudget;
+        proj.forecast = pForecast;
+
+        // Limites para o "Projetado" (dia seguinte ao fim do filtro até o fim do período vigente)
+        const effectiveEnd = activePeriodEnd || lastDayISO;
+        const projectedStart = filterEndDate ? (() => {
+          const dt = new Date(filterEndDate + 'T00:00:00');
+          dt.setDate(dt.getDate() + 1);
+          return dt.toISOString().slice(0, 10);
+        })() : '';
+
+        // Acumular por equipe
+        proj.teams.forEach(t => {
+          // Planejado mês = soma dentro do activePeriodStart/activePeriodEnd do projeto, se existir
+          if (activePeriodStart && activePeriodEnd) {
+             t.plannedMonth = sumPlansForTeamPeriod(dailyPlans, t.id, activePeriodStart, activePeriodEnd);
+          } else {
+             t.plannedMonth = sumPlansForTeamMonth(dailyPlans, t.id, refDate.year, refDate.month);
+          }
+
+          // Planejado período = soma dentro do filtro De→Até
+          t.plannedPeriod = (filterStartDate && filterEndDate)
+            ? sumPlansForTeamPeriod(dailyPlans, t.id, filterStartDate, filterEndDate)
+            : t.plannedMonth;
+
+          // Projetado = soma APÓS o filterEndDate até o fim do activePeriod
+          t.projected = (projectedStart && projectedStart <= effectiveEnd)
+            ? sumPlansForTeamPeriod(dailyPlans, t.id, projectedStart, effectiveEnd)
+            : 0;
+        });
+
+        // Agregar equipes → projeto
+        proj.plannedMonth  = proj.teams.reduce((s, t) => s + t.plannedMonth,  0);
+        proj.plannedPeriod = proj.teams.reduce((s, t) => s + t.plannedPeriod, 0);
+        proj.projected     = proj.teams.reduce((s, t) => s + t.projected,     0);
+
+        // Agregar projeto → regional
+        reg.budget        += proj.budget;
+        reg.forecast      += proj.forecast;
+        reg.plannedMonth  += proj.plannedMonth;
+        reg.plannedPeriod += proj.plannedPeriod;
+        reg.projected     += proj.projected;
+      });
+    });
+
+    const regionals = Array.from(regMap.values())
       .filter(r => r.projects.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredRdos, teams, projects]);
 
-  if (hierarchyData.length === 0) {
+    const rootNode: RootNode = {
+      name: 'DR',
+      budget:        regionals.reduce((s, r) => s + r.budget,        0),
+      forecast:      regionals.reduce((s, r) => s + r.forecast,      0),
+      plannedMonth:  regionals.reduce((s, r) => s + r.plannedMonth,  0),
+      plannedPeriod: regionals.reduce((s, r) => s + r.plannedPeriod, 0),
+      realized:      regionals.reduce((s, r) => s + r.realized,      0),
+      projected:     regionals.reduce((s, r) => s + r.projected,     0),
+      regionals,
+    };
+
+    return rootNode;
+  }, [filteredRdos, projects, teams]);
+
+  if (!root || root.regionals.length === 0) {
     return (
       <div className="glass-panel p-12 rounded-3xl border border-white/5 mt-8 text-center bg-white/[0.02] border-dashed">
-        <Target className="w-12 h-12 text-slate-700 mx-auto mb-4 opacity-20" />
-        <p className="text-slate-500 font-medium">Nenhum dado financeiro encontrado para os parâmetros selecionados.</p>
+        <p className="text-slate-500 font-medium">
+          Nenhum dado financeiro encontrado para os parâmetros selecionados.
+        </p>
       </div>
     );
   }
 
-  const grandTotal = hierarchyData.reduce((acc, curr) => acc + curr.totalRdo, 0);
-
   return (
-    <div className="mt-10 space-y-16">
-      {/* Header */}
-      <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl shadow-black/20">
-        <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
-              <DollarSign className="w-6 h-6 text-blue-400" />
-            </div>
-            <div className="flex flex-col">
-              <h3 className="text-xl font-bold text-white tracking-tight">Estrutura Financeira</h3>
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Organograma Executivo</span>
-            </div>
-          </div>
-          <div className="text-right p-4 px-6 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Faturamento Consolidado</p>
-            <p className="text-2xl font-bold text-white font-mono tracking-tighter text-gradient">{formatMoney(grandTotal)}</p>
-          </div>
-        </div>
-      </div>
+    <div className="mt-8 w-full">
+      <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl shadow-black/30">
 
-      {/* Árvores de Organograma (Por Regional) */}
-      <div className="flex flex-row items-start gap-16 overflow-x-auto w-full pb-8 custom-scrollbar">
-        {hierarchyData.map(regional => {
-          const regionalForecast = regional.projects.reduce((acc, p) => acc + p.forecast, 0);
-          const regionalPercent = regionalForecast > 0 ? (regional.totalRdo / regionalForecast) * 100 : 0;
-          const totalTeams = regional.projects.reduce((acc, p) => acc + p.teams.length, 0);
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full border-collapse text-left" style={{ minWidth: 1180 }}>
+            <thead>
+              {/* ── Linha de grupos ── */}
+              <tr className="border-b border-white/10">
 
-          const regionalBudget = regional.projects.reduce((acc, p) => acc + p.budget, 0);
+                {/* Coluna CC — sem grupo */}
+                <th rowSpan={2} className="py-3 pl-3 pr-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/80 whitespace-nowrap border-r border-white/5">
+                  CC
+                </th>
 
-          return (
-            <div key={regional.name} className="flex flex-col items-center flex-shrink-0 relative">
+                {/* Grupo 1 – Mês vigente (3 colunas) */}
+                <th colSpan={3} className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-300 bg-slate-800/70 text-center whitespace-nowrap border-r border-white/10">
+                  Mês vigente
+                </th>
 
-              {/* Nó Central: Regional Card */}
-              <div className="w-[280px] bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-white/5 p-5 flex flex-col shadow-2xl relative z-10">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[9px] font-bold text-blue-400 tracking-widest">
-                    REGIONAL
-                  </div>
-                </div>
+                {/* Grupo 2 – Período programado (4 colunas) */}
+                <th colSpan={4} className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-white bg-blue-600/70 text-center whitespace-nowrap border-r border-white/10">
+                  {periodGroupLabel}
+                </th>
 
-                <div className="mb-5">
-                  <h4 className="text-xl font-bold text-white tracking-tight">{regional.name}</h4>
-                  <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                    {regional.projects.length} obras • {totalTeams} equipes
-                  </p>
-                </div>
+                {/* Grupo 3 – Projeção do mês (4 colunas) */}
+                <th colSpan={4} className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-300 bg-slate-700/60 text-center whitespace-nowrap">
+                  {projGroupLabel}
+                </th>
+              </tr>
 
-                {/* Metrics */}
-                <div className="flex flex-col gap-2 mb-4">
-                  <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-lg">
-                    <span className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Budget</span>
-                    <span className="text-[10px] font-mono font-bold text-slate-300 truncate" title={formatMoney(regionalBudget)}>{formatMoney(regionalBudget)}</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-lg">
-                    <span className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Forecast</span>
-                    <span className="text-[10px] font-mono font-bold text-slate-300 truncate" title={formatMoney(regionalForecast)}>{formatMoney(regionalForecast)}</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
-                    <span className="text-[9px] text-blue-400 font-medium uppercase tracking-widest">RDO</span>
-                    <span className="text-[10px] font-mono font-bold text-white truncate" title={formatMoney(regional.totalRdo)}>{formatMoney(regional.totalRdo)}</span>
-                  </div>
-                </div>
+              {/* ── Sub-cabeçalhos ── */}
+              <tr className="border-b border-white/10">
+                {/* Grupo 1 */}
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 text-right whitespace-nowrap">Budget</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-800/50 text-right whitespace-nowrap">Forecast</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-amber-400/80 bg-slate-800/50 text-right whitespace-nowrap border-r border-white/10">Planejado mês</th>
 
-                {/* Progress Bar */}
-                <div className="flex items-center gap-3">
-                  <span className="text-[9px] text-slate-400 whitespace-nowrap">RDO x Forecast</span>
-                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(regionalPercent, 100)}%` }}></div>
-                  </div>
-                  <span className="text-[10px] font-bold text-white">{regionalForecast > 0 ? regionalPercent.toFixed(1).replace('.', ',') : '0,0'}%</span>
-                </div>
-              </div>
+                {/* Grupo 2 */}
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-blue-300 bg-blue-900/30 text-right whitespace-nowrap">{plannedPeriodLabel}</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-blue-300 bg-blue-900/30 text-right whitespace-nowrap">Realizado</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-blue-300 bg-blue-900/30 text-right whitespace-nowrap">Diferença</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-blue-300 bg-blue-900/30 text-right whitespace-nowrap border-r border-white/10">%</th>
 
-              {/* Conectores e Obras */}
-              {regional.projects.length > 0 && (
-                <>
-                  {/* Linha vertical descendo da Regional */}
-                  <div className="w-px h-10 bg-slate-700"></div>
+                {/* Grupo 3 */}
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/50 text-right whitespace-nowrap">{projColLabel}</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/50 text-right whitespace-nowrap">Realizado + Projetado</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/50 text-right whitespace-nowrap">Dif. vs Mês</th>
+                <th className="py-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/50 text-right whitespace-nowrap">%</th>
+              </tr>
+            </thead>
 
-                  {/* Container Horizontal das Obras */}
-                  <div className="flex items-start overflow-x-auto max-w-full pb-8 custom-scrollbar">
-                    {regional.projects.map((project, idx) => {
-                      const hasForecast = project.forecast > 0;
-                      const percentForecast = hasForecast ? (project.totalRdo / project.forecast) * 100 : 0;
-                      const isExpanded = expandedProjects.has(project.id);
+            <tbody>
+              {/* ── Root (DR) ── */}
+              <TableRow
+                id="root" name={root.name} level="root"
+                budget={root.budget} forecast={root.forecast}
+                plannedMonth={root.plannedMonth} plannedPeriod={root.plannedPeriod}
+                realized={root.realized} projected={root.projected}
+                hasChildren isExpanded={true} onToggle={undefined}
+              />
 
-                      let statusText = "SEM FORECAST";
-                      let statusColor = "slate";
+              {/* ── Regionais ── */}
+              {root.regionals.map(reg => {
+                const regExp = expandedRegionals.has(reg.name);
+                return (
+                  <React.Fragment key={reg.name}>
+                    <TableRow
+                      id={reg.name} name={reg.name} level="regional"
+                      budget={reg.budget} forecast={reg.forecast}
+                      plannedMonth={reg.plannedMonth} plannedPeriod={reg.plannedPeriod}
+                      realized={reg.realized} projected={reg.projected}
+                      hasChildren={reg.projects.length > 0}
+                      isExpanded={regExp}
+                      onToggle={() => toggle(expandedRegionals, reg.name, setExpandedRegionals)}
+                    />
 
-                      if (hasForecast) {
-                        if (percentForecast <= 40) {
-                          statusText = "ATENÇÃO";
-                          statusColor = "yellow";
-                        } else if (percentForecast <= 85) {
-                          statusText = "EM CURSO";
-                          statusColor = "blue";
-                        } else {
-                          statusText = "NO PLANO";
-                          statusColor = "emerald";
-                        }
-                      }
-
-                      const isFirst = idx === 0;
-                      const isLast = idx === regional.projects.length - 1;
-                      const isOnly = regional.projects.length === 1;
-
+                    {/* ── Projetos ── */}
+                    {regExp && reg.projects.map(proj => {
+                      const projExp = expandedProjects.has(proj.id);
                       return (
-                        <div key={project.id} className="flex flex-col items-center relative px-3">
-                          {/* Linha Horizontal Topo */}
-                          {!isOnly && (
-                            <div className={`absolute top-0 h-px bg-slate-700 ${isFirst ? 'w-1/2 right-0' :
-                                isLast ? 'w-1/2 left-0' : 'w-full left-0'
-                              }`}></div>
-                          )}
+                        <React.Fragment key={proj.id}>
+                          <TableRow
+                            id={proj.id} name={proj.name} level="project"
+                            budget={proj.budget} forecast={proj.forecast}
+                            plannedMonth={proj.plannedMonth} plannedPeriod={proj.plannedPeriod}
+                            realized={proj.realized} projected={proj.projected}
+                            hasChildren={proj.teams.length > 0}
+                            isExpanded={projExp}
+                            onToggle={proj.teams.length > 0
+                              ? () => toggle(expandedProjects, proj.id, setExpandedProjects)
+                              : undefined}
+                          />
 
-                          {/* Linha vertical descendo para a Obra */}
-                          <div className="w-px h-10 bg-slate-700 relative"></div>
-
-                          {/* Card da Obra */}
-                          <div
-                            onClick={() => toggleProject(project.id)}
-                            className={`w-[240px] flex-shrink-0 bg-[#0F172A] rounded-xl border border-slate-800 border-t-4 shadow-xl overflow-hidden transition-all cursor-pointer hover:bg-slate-900/80 group ${statusColor === 'yellow' ? 'border-t-yellow-500' :
-                                statusColor === 'blue' ? 'border-t-blue-500' :
-                                  statusColor === 'emerald' ? 'border-t-emerald-500' : 'border-t-slate-500'
-                              }`}>
-                            <div className="p-5">
-                              {/* Top Row: Status Badge */}
-                              {hasForecast && (
-                                <div className="flex justify-end items-center mb-4">
-                                  <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${statusColor === 'yellow' ? 'text-yellow-500 border-yellow-500/30' :
-                                      statusColor === 'blue' ? 'text-blue-400 border-blue-400/30' :
-                                        statusColor === 'emerald' ? 'text-emerald-500 border-emerald-500/30' : 'text-slate-400 border-slate-400/30'
-                                    }`}>
-                                    {statusText}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Title */}
-                              <h5 className="text-[11px] font-bold text-white mb-5 line-clamp-2" title={project.name}>{project.name}</h5>
-
-                              {/* Teams Legend */}
-                              <div className="flex items-center text-[10px] text-slate-400 font-medium mb-4 group-hover:text-slate-200 transition-colors">
-                                {project.teams.length} {project.teams.length === 1 ? 'equipe oculta' : 'equipes ocultas'} • clique para {isExpanded ? 'ocultar' : 'abrir'}
-                              </div>
-
-                              {/* Metrics */}
-                              <div className="flex flex-col gap-2 mb-5">
-                                <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-lg">
-                                  <span className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Budget</span>
-                                  <span className="text-[10px] font-mono font-bold text-slate-300 truncate" title={formatMoney(project.budget)}>{formatMoney(project.budget)}</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-lg">
-                                  <span className="text-[9px] text-slate-500 font-medium uppercase tracking-widest">Forecast</span>
-                                  <span className="text-[10px] font-mono font-bold text-slate-300 truncate" title={formatMoney(project.forecast)}>{formatMoney(project.forecast)}</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
-                                  <span className="text-[9px] text-blue-400 font-medium uppercase tracking-widest">RDO</span>
-                                  <span className="text-[10px] font-mono font-bold text-white truncate" title={formatMoney(project.totalRdo)}>{formatMoney(project.totalRdo)}</span>
-                                </div>
-                              </div>
-
-                              {/* Progress Bar */}
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] text-slate-400 whitespace-nowrap">RDO acumulado x Forecast</span>
-                                <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all duration-500 ${statusColor === 'yellow' ? 'bg-yellow-500' :
-                                      statusColor === 'blue' ? 'bg-blue-500' :
-                                        statusColor === 'emerald' ? 'bg-emerald-500' : 'bg-slate-500'
-                                    }`} style={{ width: `${Math.min(percentForecast, 100)}%` }}></div>
-                                </div>
-                                <span className="text-[11px] font-bold text-white">{hasForecast ? percentForecast.toFixed(1).replace('.', ',') : '0,0'}%</span>
-                              </div>
-                            </div>
-
-                            {/* Expanded Teams Context */}
-                            {isExpanded && project.teams.length > 0 && (
-                              <div className="bg-black/30 border-t border-white/5 p-5 space-y-3">
-                                {project.teams.map((team) => {
-                                  const teamPercent = project.totalRdo > 0 ? (team.totalRdo / project.totalRdo) * 100 : 0;
-                                  return (
-                                    <div key={team.id} className="flex flex-col gap-2 p-3 bg-white/[0.02] border border-white/5 rounded-lg">
-                                      <div className="flex items-center gap-2">
-                                        <Users className="w-3.5 h-3.5 text-slate-400" />
-                                        <span className="text-xs font-medium text-slate-300 truncate" title={team.name}>{team.name}</span>
-                                      </div>
-                                      <div className="flex items-center justify-between mt-1">
-                                        <div className="flex flex-col">
-                                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Partic.</span>
-                                          <span className="text-xs font-medium text-slate-400">{teamPercent.toFixed(1)}%</span>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">RDO Acumul.</span>
-                                          <span className="text-xs font-mono font-bold text-emerald-500">{formatMoney(team.totalRdo)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                          {/* ── Equipes ── */}
+                          {projExp && proj.teams.map(team => (
+                            <TableRow
+                              key={team.id} id={team.id} name={team.name} level="team"
+                              budget={team.budget} forecast={team.forecast}
+                              plannedMonth={team.plannedMonth} plannedPeriod={team.plannedPeriod}
+                              realized={team.realized} projected={team.projected}
+                              hasChildren={false} isExpanded={false}
+                            />
+                          ))}
+                        </React.Fragment>
                       );
                     })}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Legenda ── */}
+        <div className="px-6 py-3 border-t border-white/5 bg-slate-900/40 flex flex-wrap gap-6 items-center text-[10px] text-slate-500 uppercase tracking-widest">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm bg-emerald-600/80 inline-block" />
+            Acima do planejado
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm bg-red-600/80 inline-block" />
+            Abaixo do planejado
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm bg-amber-400/60 inline-block" />
+            Planejado mês em andamento
+          </span>
+          <span className="ml-auto normal-case text-slate-600 text-[10px]">
+            Clique nas linhas para expandir / colapsar
+          </span>
+        </div>
       </div>
     </div>
   );
 };
-

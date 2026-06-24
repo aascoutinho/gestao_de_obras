@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 
 import { Project, RDOData, Team } from '../../types';
-import { getDimensions } from '../../services/dbService';
+import { getDimensions, getCompositions } from '../../services/dbService';
+import { generateUUID } from '../../utils';
 
 import {
   DimensionImportResult, CompositionImportResult,
@@ -133,6 +134,33 @@ export default function ContractIntelligencePage({
     try {
       // Carrega dimensões do DB
       const stored = await getDimensions(selectedProject.id);
+      
+      // Carrega composições do DB
+      const storedComps = await getCompositions(selectedProject.id);
+      let activeCompositions = MOCK_COMPOSITIONS;
+      if (storedComps) {
+        const compositionsByService: Record<string, import('../../src/analytics/types/analyticsTypes').ServiceComposition> = {};
+        storedComps.compositions.forEach(c => {
+          compositionsByService[c.codigoComposicao] = {
+            code: c.codigoComposicao,
+            description: c.servicoTratado || c.servicoOriginal,
+            unit: c.unidade,
+            unitPrice: c.precoUnitarioTotal || 0,
+            unitCost: c.custoUnitarioTotal || 0,
+            teamProduction: c.producaoEquipe,
+            items: []
+          };
+        });
+        activeCompositions = {
+          compositionsByService,
+          totalServices: storedComps.compositions.length,
+          successCount: storedComps.compositions.length,
+          errorCount: 0,
+          issues: [],
+          importedAt: storedComps.extractedAt
+        };
+      }
+
       let dimResult: DimensionImportResult | null = null;
 
       if (stored) {
@@ -156,7 +184,7 @@ export default function ContractIntelligencePage({
 
       const issues: ValidationItem[] = [];
       const addWarning = (msg: string, mod: ValidationItem['module']) => {
-        issues.push({ id: crypto.randomUUID(), type: 'warning', title: 'Alerta Analítico', description: msg, module: mod });
+        issues.push({ id: generateUUID(), type: 'warning', title: 'Alerta Analítico', description: msg, module: mod });
       };
 
       // Fatos
@@ -167,17 +195,17 @@ export default function ContractIntelligencePage({
         setResourceFacts(facts);
         warnings.forEach(w => addWarning(w, 'RECURSOS'));
       } else {
-        issues.push({ id: crypto.randomUUID(), type: 'info', title: 'Dimensões Ausentes', description: 'A planilha de dimensões da obra não foi importada. A aba de Recursos estará vazia.', module: 'RECURSOS' });
+        issues.push({ id: generateUUID(), type: 'info', title: 'Dimensões Ausentes', description: 'A planilha de dimensões da obra não foi importada. A aba de Recursos estará vazia.', module: 'RECURSOS' });
       }
 
       if (projectRdos.length > 0) {
         // Measurement
-        const mRes = buildMeasurementFacts({ projectId: selectedProject.id, rdos: projectRdos, compositions: MOCK_COMPOSITIONS, projectServices: selectedProject.services || [] });
+        const mRes = buildMeasurementFacts({ projectId: selectedProject.id, rdos: projectRdos, compositions: activeCompositions, projectServices: selectedProject.services || [] });
         setMeasureFacts(mRes.facts);
         mRes.warnings.forEach(w => addWarning(w, 'MEDICAO'));
 
         // Productivity
-        const pRes = buildProductivityFacts({ projectId: selectedProject.id, rdos: projectRdos, compositions: MOCK_COMPOSITIONS });
+        const pRes = buildProductivityFacts({ projectId: selectedProject.id, rdos: projectRdos, compositions: activeCompositions, projectServices: selectedProject.services || [] });
         setProdFacts(pRes.facts);
         pRes.warnings.forEach(w => addWarning(w, 'PRODUTIVIDADE'));
 
@@ -187,11 +215,11 @@ export default function ContractIntelligencePage({
         oRes.warnings.forEach(w => addWarning(w, 'OCORRENCIAS'));
 
         // Idleness
-        const iRes = buildIdlenessFacts({ occurrenceFacts: oRes.facts, rdos: projectRdos, compositions: MOCK_COMPOSITIONS });
+        const iRes = buildIdlenessFacts({ occurrenceFacts: oRes.facts, rdos: projectRdos, compositions: activeCompositions });
         setIdlenessFacts(iRes.facts);
         iRes.warnings.forEach(w => addWarning(w, 'IMPRODUTIVIDADE'));
       } else {
-        issues.push({ id: crypto.randomUUID(), type: 'info', title: 'Sem RDOs', description: 'Nenhum RDO encontrado para gerar medição e ocorrências.', module: 'GERAL' });
+        issues.push({ id: generateUUID(), type: 'info', title: 'Sem RDOs', description: 'Nenhum RDO encontrado para gerar medição e ocorrências.', module: 'GERAL' });
       }
 
       setValidationIssues(issues);

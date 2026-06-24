@@ -35,7 +35,8 @@ import { normalizeText, safeNumber } from '../core/normalizer';
  */
 export function matchActivityToComposition(
   activity: Activity,
-  compositions: CompositionImportResult | null
+  compositions: CompositionImportResult | null,
+  projectServices?: ServiceItem[]
 ): { composition: ServiceComposition | null; isNameEquivalence: boolean } {
   if (!compositions || !compositions.compositionsByService) {
     return { composition: null, isNameEquivalence: false };
@@ -48,11 +49,52 @@ export function matchActivityToComposition(
     return { composition: compositionsByService[activity.code], isNameEquivalence: false };
   }
 
-  // 2. Busca por nome normalizado
-  const normalizedActivityName = normalizeText(activity.description);
+  // Prepara nome limpo usando a Tabela de Preços (projectServices) como ponte, se disponível
+  let cleanActivityName = activity.description;
+  if (activity.code && projectServices) {
+    const serviceInTable = projectServices.find(s => s.code === activity.code);
+    if (serviceInTable) {
+      cleanActivityName = serviceInTable.scope;
+    }
+  }
+
+  // 2. Busca por nome normalizado (tolerante a comentários extras após o nome do serviço)
+  const normalizedActivityName = normalizeText(cleanActivityName);
+  
+  let bestMatch: ServiceComposition | null = null;
+  let bestMatchLength = 0;
+
   for (const comp of Object.values(compositionsByService)) {
-    if (normalizeText(comp.description) === normalizedActivityName) {
-      return { composition: comp, isNameEquivalence: true };
+    const normCompDesc = normalizeText(comp.description);
+    
+    // Correspondência exata ou a atividade do RDO começa com o nome da composição seguido de espaço.
+    if (normalizedActivityName === normCompDesc || normalizedActivityName.startsWith(normCompDesc + ' ')) {
+      // Se houver múltiplos matches (ex: "ESCAVAÇÃO" vs "ESCAVAÇÃO EM ROCHA"), prioriza o mais longo
+      if (normCompDesc.length > bestMatchLength) {
+        bestMatch = comp;
+        bestMatchLength = normCompDesc.length;
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return { composition: bestMatch, isNameEquivalence: true };
+  }
+
+  // 3. Fallback para o nome original sujo (caso a ponte não tenha dado resultado)
+  if (cleanActivityName !== activity.description) {
+    const dirtyNormalized = normalizeText(activity.description);
+    for (const comp of Object.values(compositionsByService)) {
+      const normCompDesc = normalizeText(comp.description);
+      if (dirtyNormalized === normCompDesc || dirtyNormalized.startsWith(normCompDesc + ' ')) {
+        if (normCompDesc.length > bestMatchLength) {
+          bestMatch = comp;
+          bestMatchLength = normCompDesc.length;
+        }
+      }
+    }
+    if (bestMatch) {
+      return { composition: bestMatch, isNameEquivalence: true };
     }
   }
 
@@ -101,7 +143,7 @@ export function buildMeasurementFacts(
       let unit = 'UN';
       let status: MeasurementStatus = 'SEM_COMPOSICAO';
 
-      const { composition, isNameEquivalence } = matchActivityToComposition(activity, compositions);
+      const { composition, isNameEquivalence } = matchActivityToComposition(activity, compositions, projectServices);
 
       if (composition) {
         unitPrice = composition.unitPrice;

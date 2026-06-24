@@ -36,19 +36,19 @@ interface ResourcesMonthlyTableProps {
 // ---------------------------------------------------------------------------
 
 const STATUS_CONFIG: Record<MonthlyResourceStatus, { label: string; color: string; bg: string }> = {
-  PLANEJADO_E_REALIZADO:          { label: 'Plan. e Real.',       color: '#4ade80', bg: '#052e16' },
-  PLANEJADO_SEM_REALIZADO:        { label: 'Pl. Sem Real.',       color: '#f87171', bg: '#450a0a' },
-  REALIZADO_FORA_DO_PLANEJAMENTO: { label: 'Fora do Plan.',       color: '#fb923c', bg: '#431407' },
-  SEM_EQUIVALENCIA:               { label: 'Sem Equivalência',    color: '#a78bfa', bg: '#2e1065' },
-  SEM_CUSTO_CADASTRADO:           { label: 'Sem Custo',           color: '#94a3b8', bg: '#0f172a' },
+  PLANEJADO_E_REALIZADO: { label: 'Plan. e Real.', color: '#4ade80', bg: '#052e16' },
+  PLANEJADO_SEM_REALIZADO: { label: 'Pl. Sem Real.', color: '#60a5fa', bg: '#1e3a8a' },
+  REALIZADO_FORA_DO_PLANEJAMENTO: { label: 'Fora do Plan.', color: '#fb923c', bg: '#431407' },
+  SEM_EQUIVALENCIA: { label: 'Sem Equivalência', color: '#a78bfa', bg: '#2e1065' },
+  SEM_CUSTO_CADASTRADO: { label: 'Sem Custo', color: '#94a3b8', bg: '#0f172a' },
 };
 
 const GROUP_CONFIG: Record<DimensionGroup, { label: string; color: string }> = {
-  MOD:      { label: 'MOD — M.O. Direta',   color: '#4ade80' },
-  MOI:      { label: 'MOI — M.O. Indireta', color: '#60a5fa' },
-  EQUIP:    { label: 'EQUIP — Equipamentos', color: '#f59e0b' },
-  MATERIAL: { label: 'Material',             color: '#a78bfa' },
-  OTHER:    { label: 'Outros',               color: '#94a3b8' },
+  MOD: { label: 'MOD — M.O. Direta', color: '#4ade80' },
+  MOI: { label: 'MOI — M.O. Indireta', color: '#60a5fa' },
+  EQUIP: { label: 'EQUIP — Equipamentos', color: '#f59e0b' },
+  MATERIAL: { label: 'Material', color: '#a78bfa' },
+  OTHER: { label: 'Outros', color: '#94a3b8' },
 };
 
 const ALL_GROUPS: Array<'ALL' | DimensionGroup> = ['ALL', 'MOD', 'MOI', 'EQUIP', 'MATERIAL', 'OTHER'];
@@ -70,9 +70,11 @@ const NUM = (v: number, dec = 2) => v.toLocaleString('pt-BR', { minimumFractionD
 const PCT = (v: number) => `${v >= 0 ? '+' : ''}${NUM(v * 100, 1)}%`;
 
 function DeviationCell({ value, isCurrency }: { value: number; isCurrency?: boolean }) {
-  const color = value > 0 ? '#4ade80' : value < 0 ? '#f87171' : '#64748b';
+  // Positivo (gasto/quantidade extra) = RUIM (Vermelho)
+  // Negativo (economia) = BOM (Verde)
+  const color = value > 0 ? '#f87171' : value < 0 ? '#4ade80' : '#64748b';
   const label = isCurrency ? BRL(value) : NUM(value);
-  return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{value >= 0 ? '+' : ''}{label}</span>;
+  return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{value > 0 ? '+' : ''}{label}</span>;
 }
 
 function StatusBadge({ status }: { status: MonthlyResourceStatus }) {
@@ -106,22 +108,22 @@ function KpiCard({ label, value, color, sub }: { label: string; value: string; c
 // Exporta CSV simples
 function exportCsv(facts: MonthlyResourceFact[], filename: string) {
   const cols: Array<{ key: keyof MonthlyResourceFact; header: string }> = [
-    { key: 'monthKey',           header: 'Mês'              },
-    { key: 'group',              header: 'Grupo'            },
-    { key: 'item',               header: 'Item Padrão'      },
-    { key: 'itemRdo',            header: 'Item RDO'         },
-    { key: 'validBusinessDays',  header: 'Dias Úteis'       },
-    { key: 'plannedQty',         header: 'Qtd Plan.'        },
-    { key: 'realizedAverageQty', header: 'Qtd Real.'        },
-    { key: 'quantityDeviation',  header: 'Desvio Qtd'       },
-    { key: 'plannedHH',          header: 'HH Plan.'         },
-    { key: 'realHH',             header: 'HH Real'          },
-    { key: 'monthlyUnitCost',    header: 'Custo Unit. Mensal'},
-    { key: 'plannedCost',        header: 'Custo Plan.'      },
-    { key: 'realizedCost',       header: 'Custo Real.'      },
-    { key: 'financialDeviation', header: 'Desvio Fin.'      },
-    { key: 'status',             header: 'Status'           },
-    { key: 'observation',        header: 'Observação'       },
+    { key: 'monthKey', header: 'Mês' },
+    { key: 'group', header: 'Grupo' },
+    { key: 'item', header: 'Item Padrão' },
+    { key: 'itemRdo', header: 'Item RDO' },
+    { key: 'validBusinessDays', header: 'Dias Úteis' },
+    { key: 'plannedQty', header: 'Qtd Plan.' },
+    { key: 'realizedAverageQty', header: 'Qtd Real.' },
+    { key: 'quantityDeviation', header: 'Desvio Qtd' },
+    { key: 'plannedHH', header: 'HH Plan.' },
+    { key: 'realHH', header: 'HH Real' },
+    { key: 'monthlyUnitCost', header: 'Custo Unit. Mensal' },
+    { key: 'plannedCost', header: 'Custo Plan.' },
+    { key: 'realizedCost', header: 'Custo Real.' },
+    { key: 'financialDeviation', header: 'Desvio Fin.' },
+    { key: 'status', header: 'Status' },
+    { key: 'observation', header: 'Observação' },
   ];
 
   const header = cols.map(c => `"${c.header}"`).join(';');
@@ -155,13 +157,13 @@ type SortDir = 'asc' | 'desc';
 // ---------------------------------------------------------------------------
 
 export function ResourcesMonthlyTable({ facts, projectName }: ResourcesMonthlyTableProps) {
-  const [groupFilter,  setGroupFilter]  = useState<'ALL' | DimensionGroup>('ALL');
-  const [monthFilter,  setMonthFilter]  = useState<string>('ALL');
+  const [groupFilter, setGroupFilter] = useState<'ALL' | DimensionGroup>('ALL');
+  const [monthFilter, setMonthFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | MonthlyResourceStatus>('ALL');
-  const [search,       setSearch]       = useState('');
-  const [sortKey,      setSortKey]      = useState<SortKey>('monthKey');
-  const [sortDir,      setSortDir]      = useState<SortDir>('asc');
-  const [activeTab,    setActiveTab]    = useState<'ALL' | 'MOD' | 'MOI' | 'EQUIP'>('ALL');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('monthKey');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'MOD' | 'MOI' | 'EQUIP'>('ALL');
 
   // Meses disponíveis
   const availableMonths = useMemo(() => {
@@ -179,8 +181,8 @@ export function ResourcesMonthlyTable({ facts, projectName }: ResourcesMonthlyTa
   // Aplica filtros
   const filtered = useMemo(() => {
     let result = tabFacts;
-    if (groupFilter  !== 'ALL') result = result.filter(f => f.group === groupFilter);
-    if (monthFilter  !== 'ALL') result = result.filter(f => f.monthKey === monthFilter);
+    if (groupFilter !== 'ALL') result = result.filter(f => f.group === groupFilter);
+    if (monthFilter !== 'ALL') result = result.filter(f => f.monthKey === monthFilter);
     if (statusFilter !== 'ALL') result = result.filter(f => f.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -208,12 +210,12 @@ export function ResourcesMonthlyTable({ facts, projectName }: ResourcesMonthlyTa
   }, [filtered, sortKey, sortDir]);
 
   // KPIs
-  const summary     = useMemo(() => getFactsSummary(filtered),                    [filtered]);
-  const splitGroups = useMemo(() => splitResourceFactsByGroup(facts),              [facts]);
-  const tabCounts   = useMemo(() => ({
-    ALL:  facts.length,
-    MOD:  splitGroups.mod.length,
-    MOI:  splitGroups.moi.length,
+  const summary = useMemo(() => getFactsSummary(filtered), [filtered]);
+  const splitGroups = useMemo(() => splitResourceFactsByGroup(facts), [facts]);
+  const tabCounts = useMemo(() => ({
+    ALL: facts.length,
+    MOD: splitGroups.mod.length,
+    MOI: splitGroups.moi.length,
     EQUIP: splitGroups.equip.length,
   }), [facts, splitGroups]);
 
@@ -255,15 +257,15 @@ export function ResourcesMonthlyTable({ facts, projectName }: ResourcesMonthlyTa
       {/* KPI Cards */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
         <KpiCard label="Total de Registros" value={String(summary.totalFacts)} color="#e2e8f0" />
-        <KpiCard label="Custo Planejado"    value={BRL(summary.totalPlannedCost)}  color="#60a5fa" />
-        <KpiCard label="Custo Realizado"    value={BRL(summary.totalRealizedCost)} color="#4ade80" />
+        <KpiCard label="Custo Planejado" value={BRL(summary.totalPlannedCost)} color="#60a5fa" />
+        <KpiCard label="Custo Realizado" value={BRL(summary.totalRealizedCost)} color="#4ade80" />
         <KpiCard
           label="Desvio Financeiro"
           value={BRL(summary.financialDeviation)}
-          color={summary.financialDeviation >= 0 ? '#4ade80' : '#f87171'}
+          color={summary.financialDeviation > 0 ? '#f87171' : summary.financialDeviation < 0 ? '#4ade80' : '#e2e8f0'}
         />
         <KpiCard label="HH Planejado" value={NUM(summary.totalPlannedHH)} color="#60a5fa" sub="horas" />
-        <KpiCard label="HH Real"      value={NUM(summary.totalRealHH)}    color="#4ade80" sub="horas" />
+        <KpiCard label="HH Real" value={NUM(summary.totalRealHH)} color="#4ade80" sub="horas" />
         <KpiCard
           label="Plan. e Realizado"
           value={String(summary.countByStatus['PLANEJADO_E_REALIZADO'] ?? 0)}
@@ -272,7 +274,7 @@ export function ResourcesMonthlyTable({ facts, projectName }: ResourcesMonthlyTa
         <KpiCard
           label="Pl. Sem Realizado"
           value={String(summary.countByStatus['PLANEJADO_SEM_REALIZADO'] ?? 0)}
-          color="#f87171"
+          color="#60a5fa"
         />
       </div>
 

@@ -123,6 +123,8 @@ export interface DimensionImportMetadata {
   cliente?: string;
   /** Centro de custo da obra */
   centroCusto?: string;
+  /** Nome da obra */
+  nomeObra?: string;
   /** Valor contratual total */
   valorContratual?: number;
   /** Data de início global da obra (i_start da planilha) */
