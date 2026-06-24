@@ -381,9 +381,8 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({
           }
         } else {
           // Fallback para valores do projeto caso não haja períodos cadastrados
-          const projectFallback = projects.find(p => p.id === proj.id);
-          pBudget = projectFallback?.budgetValue || 0;
-          pForecast = projectFallback?.forecastValue || 0;
+          pBudget = 0;
+          pForecast = 0;
         }
 
         proj.budget = pBudget;

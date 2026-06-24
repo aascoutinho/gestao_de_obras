@@ -5,4 +5,5 @@ export const COLLECTIONS = {
   HISTOGRAMS: "construction_histograms",
   DIMENSIONS: "construction_dimensions",
   COMPOSITIONS: "construction_compositions",
+  CONTRACTS: "construction_contracts",
 } as const;

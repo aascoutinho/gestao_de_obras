@@ -65,8 +65,6 @@ export interface Project {
   status?: 'ACTIVE' | 'COMPLETED' | 'ON_HOLD';
   contractValue?: number;
   regional?: string;
-  budgetValue?: number;
-  forecastValue?: number;
   createdAt: string;
   address?: string;
   services: ServiceItem[];

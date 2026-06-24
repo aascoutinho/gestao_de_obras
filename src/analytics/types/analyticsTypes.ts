@@ -35,8 +35,6 @@ export interface AnalyticsProjectContext {
   endDate: string;
   /** Valor contratual bruto (= Project.contractValue) */
   contractValue?: number;
-  /** Valor orçado (= Project.budgetValue) */
-  budgetValue?: number;
   /** Status corrente do projeto */
   status?: 'ACTIVE' | 'COMPLETED' | 'ON_HOLD';
   /** Regional responsável */
