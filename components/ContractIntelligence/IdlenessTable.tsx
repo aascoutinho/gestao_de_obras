@@ -29,22 +29,10 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
 }
 
 export function IdlenessTable({ facts, projectName }: IdlenessTableProps) {
-  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<keyof IdlenessFact>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const filtered = useMemo(() => {
-    return facts.filter(f => {
-      if (search) {
-        const s = search.toLowerCase();
-        return (
-          f.occurrenceDescription.toLowerCase().includes(s) ||
-          f.date.includes(s)
-        );
-      }
-      return true;
-    });
-  }, [facts, search]);
+  const filtered = facts;
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -83,27 +71,6 @@ export function IdlenessTable({ facts, projectName }: IdlenessTableProps) {
     verticalAlign: 'middle'
   };
 
-  const exportCsv = () => {
-    const header = '"Data";"Ocorrência";"Horas";"MO Afetada";"Eqp Afetado";"Valor MO";"Valor Eqp";"Valor Total"';
-    const rows = sorted.map(f => [
-      f.date,
-      `"${f.occurrenceDescription.replace(/"/g, '""')}"`,
-      String(f.impactHours).replace('.', ','),
-      f.workforceCount,
-      f.equipmentCount,
-      String(f.workforceValue).replace('.', ','),
-      String(f.equipmentValue).replace('.', ','),
-      String(f.totalValue).replace('.', ',')
-    ].join(';'));
-    
-    const blob = new Blob(['\uFEFF' + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `improdutividade_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  };
-
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#e2e8f0' }}>
       <div style={{ marginBottom: 20 }}>
@@ -126,21 +93,7 @@ export function IdlenessTable({ facts, projectName }: IdlenessTableProps) {
         <KpiCard label="Valor Potencial Preliminar" value={BRL(summary.totalValue)} color="#4ade80" />
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-          <input
-            type="text"
-            placeholder="Buscar descrição..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 32px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', boxSizing: 'border-box' }}
-          />
-        </div>
-        <button onClick={exportCsv} style={{ padding: '8px 16px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: 8, color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Download size={14} /> Exportar CSV
-        </button>
-      </div>
+
 
       <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

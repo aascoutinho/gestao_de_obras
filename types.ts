@@ -40,7 +40,7 @@ export interface MonthlyBudgetEntry {
   budget: number;
   forecast: number;
   measured: number;
-  teamAllocations?: { teamId: string; budgetPct: number; forecastPct: number }[];
+  teamAllocations?: { teamId: string; budgetPct: number; forecastPct: number; budgetValue?: number; forecastValue?: number }[];
 }
 
 /** Dados financeiros e contratuais de uma obra */
@@ -75,6 +75,8 @@ export interface ServiceItem {
   scope: string;
   unit: string;
   value: number;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Team {

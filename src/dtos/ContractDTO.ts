@@ -29,7 +29,7 @@ export interface MonthlyBudgetEntryDTO {
   medido?: string | number;
   measured?: number;
   alocacoes_equipe?: { teamId: string; budgetPct?: number; forecastPct?: number }[];
-  teamAllocations?: { teamId: string; budgetPct: number; forecastPct: number }[];
+  teamAllocations?: { teamId: string; budgetPct: number; forecastPct: number; budgetValue?: number; forecastValue?: number }[];
 }
 
 export interface ContractDTO {

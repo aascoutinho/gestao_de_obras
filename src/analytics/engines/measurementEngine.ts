@@ -19,6 +19,7 @@ import {
   MeasurementStatus
 } from '../types/analyticsTypes';
 import { normalizeText, safeNumber } from '../core/normalizer';
+import { isDateInRange } from '../../../utils';
 
 // ---------------------------------------------------------------------------
 // 1. matchActivityToComposition
@@ -36,7 +37,8 @@ import { normalizeText, safeNumber } from '../core/normalizer';
 export function matchActivityToComposition(
   activity: Activity,
   compositions: CompositionImportResult | null,
-  projectServices?: ServiceItem[]
+  projectServices?: ServiceItem[],
+  rdoDate?: string
 ): { composition: ServiceComposition | null; isNameEquivalence: boolean } {
   if (!compositions || !compositions.compositionsByService) {
     return { composition: null, isNameEquivalence: false };
@@ -51,8 +53,8 @@ export function matchActivityToComposition(
 
   // Prepara nome limpo usando a Tabela de Preços (projectServices) como ponte, se disponível
   let cleanActivityName = activity.description;
-  if (activity.code && projectServices) {
-    const serviceInTable = projectServices.find(s => s.code === activity.code);
+  if (activity.code && projectServices && rdoDate) {
+    const serviceInTable = projectServices.find(s => s.code === activity.code && isDateInRange(rdoDate, s.startDate, s.endDate));
     if (serviceInTable) {
       cleanActivityName = serviceInTable.scope;
     }
@@ -142,23 +144,26 @@ export function buildMeasurementFacts(
       let unitCost = 0;
       let unit = 'UN';
       let status: MeasurementStatus = 'SEM_COMPOSICAO';
+      let activityName = '';
 
-      const { composition, isNameEquivalence } = matchActivityToComposition(activity, compositions, projectServices);
+      const { composition, isNameEquivalence } = matchActivityToComposition(activity, compositions, projectServices, rdo.date);
 
       if (composition) {
         unitPrice = composition.unitPrice;
         unitCost = composition.unitCost;
         unit = composition.unit || unit;
         status = isNameEquivalence ? 'EQUIVALENCIA_NOME' : 'ENCONTRADA_COMPOSICAO';
+        activityName = composition.description;
         
         // Verifica divergência de unidade (heurística simples por nome normalizado da unidade)
         // Se RDO não tem unidade, assumimos a da composição. 
         // Como Activity não tem unit no type padrão, usamos a unidade da composição.
         // Mas se quisermos tratar divergência no futuro, precisaria de unit na Activity.
       } else {
-        // Fallback: buscar em projectServices
+        // Fallback: buscar em projectServices considerando a data do RDO
         const fallbackService = projectServices.find(s => 
-          s.code === activity.code || normalizeText(s.scope) === normalizeText(activity.description)
+          (s.code === activity.code || normalizeText(s.scope) === normalizeText(activity.description)) &&
+          isDateInRange(rdo.date, s.startDate, s.endDate)
         );
 
         if (fallbackService) {
@@ -166,6 +171,7 @@ export function buildMeasurementFacts(
           unitCost = 0; // Fallback não tem custo detalhado
           unit = fallbackService.unit;
           status = 'PRECO_SERVICES_FALLBACK';
+          activityName = fallbackService.scope;
         } else {
           status = 'SEM_COMPOSICAO';
           warnings.push(`RDO ${rdo.date}: Atividade '${activity.description}' sem composição e sem fallback.`);
@@ -180,7 +186,10 @@ export function buildMeasurementFacts(
       facts.push({
         projectId,
         date: rdo.date,
+        rdoId: rdo.id,
+        teamId: rdo.teamId,
         activityCode: activity.code || '',
+        activityName,
         activityDescription: activity.description,
         unit,
         quantity,

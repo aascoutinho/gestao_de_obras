@@ -106,6 +106,7 @@ export function buildProductivityFacts(
       facts.push({
         projectId,
         date: rdo.date,
+        teamId: rdo.teamId,
         activityCode: activity.code || '',
         activityDescription: activity.description,
         workedHours,

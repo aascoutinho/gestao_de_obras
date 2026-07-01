@@ -29,7 +29,9 @@ export class ProjectMapper {
       code: String(s.code || s.codigo || '').trim(),
       scope: String(s.scope || s.escopo || '').trim(),
       unit: String(s.unit || s.unidade || '').trim(),
-      value: normalizeCurrency(s.value ?? s.valor)
+      value: normalizeCurrency(s.value ?? s.valor),
+      startDate: normalizeDate(s.startDate || s.DATA_INICIO) || undefined,
+      endDate: normalizeDate(s.endDate || s.DATA_FIM) || undefined
     })).filter(s => s.code !== '');
 
     return {
@@ -56,7 +58,11 @@ export class ProjectMapper {
       code: s.code,
       scope: s.scope,
       unit: s.unit,
-      value: s.value
+      value: s.value,
+      startDate: s.startDate,
+      DATA_INICIO: s.startDate,
+      endDate: s.endDate,
+      DATA_FIM: s.endDate
     }));
 
     return {

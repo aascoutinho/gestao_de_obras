@@ -127,10 +127,35 @@ export const DailyBreakdownTable: React.FC<DailyBreakdownTableProps> = ({
   const todayISO = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
 
   const startISO = filterStartDate || (() => {
+    let earliest = '';
+    if (filteredRdos.length > 0) {
+      earliest = filteredRdos.map(r => rdoDateToISO(r.date)).sort()[0];
+    }
+    if (dailyPlans && dailyPlans.length > 0) {
+      const earliestPlan = dailyPlans.map(p => p.date).sort()[0];
+      if (!earliest || earliestPlan < earliest) earliest = earliestPlan;
+    }
+    
+    if (earliest) return earliest;
+
     const d = new Date(today.getFullYear(), today.getMonth(), 1);
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-01`;
   })();
-  const endISO = filterEndDate || todayISO;
+  
+  const endISO = filterEndDate || (() => {
+    let latest = '';
+    if (filteredRdos.length > 0) {
+      latest = filteredRdos.map(r => rdoDateToISO(r.date)).sort().reverse()[0];
+    }
+    if (dailyPlans && dailyPlans.length > 0) {
+      const latestPlan = dailyPlans.map(p => p.date).sort().reverse()[0];
+      if (!latest || latestPlan > latest) latest = latestPlan;
+    }
+    
+    if (latest) return latest;
+
+    return todayISO;
+  })();
 
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
 

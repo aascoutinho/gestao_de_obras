@@ -25,6 +25,12 @@
       radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
     background-attachment: fixed;
   }
+
+  /* Ensure option text is readable against default browser white background */
+  option {
+    color: #0f172a;
+    background-color: #fff;
+  }
 }
 
 /* Glassmorphism Classes */

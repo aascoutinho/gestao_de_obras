@@ -137,7 +137,7 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
   const periodBudget = activePeriod?.budget || 0;
   const periodForecast = activePeriod?.forecast || 0;
 
-  const handleUpdateAllocation = (teamId: string, field: 'budgetPct' | 'forecastPct', val: number) => {
+  const handleUpdateAllocation = (teamId: string, field: 'budgetPct' | 'forecastPct' | 'budgetValue' | 'forecastValue', val: number) => {
     if (!activePeriod || !selectedProjectId) return;
     const cData = contractDataMap[selectedProjectId];
     if (!cData) return;
@@ -395,11 +395,11 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
                   <th className="sticky left-0 z-20 py-3 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 min-w-[160px]">
                     Equipe
                   </th>
-                  <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 w-[60px] text-center">
-                    % BDG
+                  <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 w-[100px] text-center">
+                    Budget (R$)
                   </th>
-                  <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 w-[60px] text-center">
-                    % FCST
+                  <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 w-[100px] text-center">
+                    Forecast (R$)
                   </th>
                   <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-900/95 whitespace-nowrap border-r border-white/5 min-w-[80px]">
                     Tipo
@@ -442,12 +442,18 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
                 {projectTeams.map((team, tIdx) => {
                   const teamTotal = teamTotals.find(t => t.id === team.id)?.total ?? 0;
                   const allocation = activePeriod?.teamAllocations?.find(a => a.teamId === team.id);
-                  const budgetPct = allocation?.budgetPct || 0;
-                  const forecastPct = allocation?.forecastPct || 0;
-                  const teamBudget = periodBudget * (budgetPct / 100);
-                  const dailyBudget = daysISO.length > 0 ? teamBudget / daysISO.length : 0;
-                  const teamForecast = periodForecast * (forecastPct / 100);
-                  const dailyForecast = daysISO.length > 0 ? teamForecast / daysISO.length : 0;
+                  const budgetValue = allocation?.budgetValue || 0;
+                  const forecastValue = allocation?.forecastValue || 0;
+                  
+                  const weekdaysCount = daysISO.filter(iso => {
+                    const dow = new Date(iso + 'T00:00:00').getDay();
+                    return dow !== 0 && dow !== 6;
+                  }).length;
+
+                  const teamBudget = budgetValue;
+                  const dailyBudget = weekdaysCount > 0 ? teamBudget / weekdaysCount : 0;
+                  const teamForecast = forecastValue;
+                  const dailyForecast = weekdaysCount > 0 ? teamForecast / weekdaysCount : 0;
                   const bgBase = tIdx % 2 === 0 ? 'bg-slate-900/20' : 'bg-slate-900/40';
 
                   return (
@@ -458,19 +464,22 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
                           {team.name}
                         </td>
                         <td rowSpan={3} className="py-2 px-2 border-r border-white/5 align-middle text-center">
-                          <input type="number" defaultValue={budgetPct} onBlur={e => handleUpdateAllocation(team.id, 'budgetPct', Number(e.target.value))} className="w-12 bg-black/20 border border-white/10 rounded px-1 py-1 text-emerald-400 text-xs text-center outline-none focus:border-emerald-500" />
+                          <input type="text" inputMode="numeric" defaultValue={teamBudget !== 0 ? fmtBRL(teamBudget) : ''} onBlur={e => handleUpdateAllocation(team.id, 'budgetValue', parseBRL(e.target.value))} className="w-20 bg-black/20 border border-white/10 rounded px-1 py-1 text-emerald-400 text-xs text-center outline-none focus:border-emerald-500 placeholder:text-slate-600" placeholder="—" />
                         </td>
                         <td rowSpan={3} className="py-2 px-2 border-r border-white/5 align-middle text-center">
-                          <input type="number" defaultValue={forecastPct} onBlur={e => handleUpdateAllocation(team.id, 'forecastPct', Number(e.target.value))} className="w-12 bg-black/20 border border-white/10 rounded px-1 py-1 text-blue-400 text-xs text-center outline-none focus:border-blue-500" />
+                          <input type="text" inputMode="numeric" defaultValue={teamForecast !== 0 ? fmtBRL(teamForecast) : ''} onBlur={e => handleUpdateAllocation(team.id, 'forecastValue', parseBRL(e.target.value))} className="w-20 bg-black/20 border border-white/10 rounded px-1 py-1 text-blue-400 text-xs text-center outline-none focus:border-blue-500 placeholder:text-slate-600" placeholder="—" />
                         </td>
                         <td className="py-1 px-2 text-[10px] text-slate-500 border-r border-white/5 uppercase tracking-wider font-semibold">
                           Budget
                         </td>
-                        {daysISO.map(isoDate => (
-                           <td key={isoDate} className="py-1 px-1 border-r border-white/5 text-emerald-400/50 text-[10px] text-right">
-                             {fmtBRL(dailyBudget)}
-                           </td>
-                        ))}
+                        {daysISO.map(isoDate => {
+                           const isWeekend = [0, 6].includes(new Date(isoDate + 'T00:00:00').getDay());
+                           return (
+                             <td key={isoDate} className="py-1 px-1 border-r border-white/5 text-emerald-400/50 text-[10px] text-right">
+                               {isWeekend ? '—' : fmtBRL(dailyBudget)}
+                             </td>
+                           );
+                        })}
                         <td className="py-1 px-4 text-[10px] text-right font-mono font-semibold text-emerald-400/70 border-l border-white/10 whitespace-nowrap bg-slate-800/30">
                           {fmtBRL(teamBudget)}
                         </td>
@@ -481,11 +490,14 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
                         <td className="py-1 px-2 text-[10px] text-slate-500 border-r border-white/5 uppercase tracking-wider font-semibold">
                           Forecast
                         </td>
-                        {daysISO.map(isoDate => (
-                           <td key={isoDate} className="py-1 px-1 border-r border-white/5 text-blue-400/50 text-[10px] text-right">
-                             {fmtBRL(dailyForecast)}
-                           </td>
-                        ))}
+                        {daysISO.map(isoDate => {
+                           const isWeekend = [0, 6].includes(new Date(isoDate + 'T00:00:00').getDay());
+                           return (
+                             <td key={isoDate} className="py-1 px-1 border-r border-white/5 text-blue-400/50 text-[10px] text-right">
+                               {isWeekend ? '—' : fmtBRL(dailyForecast)}
+                             </td>
+                           );
+                        })}
                         <td className="py-1 px-4 text-[10px] text-right font-mono font-semibold text-blue-400/70 border-l border-white/10 whitespace-nowrap bg-slate-800/30">
                           {fmtBRL(teamForecast)}
                         </td>

@@ -12,6 +12,7 @@ import { ProjectsPage } from './src/modules/projects/pages/ProjectsPage';
 import { ContractIntelligencePage } from './src/modules/contract-intelligence/pages/ContractIntelligencePage';
 import { PlanningPage } from './src/modules/planning/pages/PlanningPage';
 import { ProjectModal } from './src/modules/projects/components/ProjectModal';
+import logoImg from './vector/logo.png';
 
 function App() {
   const {
@@ -56,14 +57,14 @@ function App() {
       border-r border-white/5
     `}>
       <div className="flex flex-col h-full">
-        <div className="p-8 border-b border-white/5 flex items-center gap-4">
-          <div className="bg-gradient-premium p-2.5 rounded-2xl shadow-lg shadow-blue-500/20 animate-float">
-            <BarChart2 className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold tracking-tight text-white leading-none">RDO Pro</h1>
-            <span className="text-[10px] uppercase tracking-widest text-blue-400 font-bold mt-1">Analytics Dashboard</span>
-          </div>
+        <div className="p-8 border-b border-white/5 flex flex-col items-center justify-center gap-1.5">
+          <img src={logoImg} alt="DR Capital Humano" className="w-40 h-auto object-contain mb-3" />
+          <span className="text-sm uppercase tracking-[0.15em] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 text-center">
+            Analytics RDO
+          </span>
+          <span className="text-xs text-slate-400/90 font-medium text-center">
+            IA Aplicada em Gestão Ágil e Eficiente
+          </span>
         </div>
 
         <nav className="flex-1 p-6 space-y-3">

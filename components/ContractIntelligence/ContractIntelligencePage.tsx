@@ -9,7 +9,7 @@ import {
   Brain, Upload, RefreshCw, AlertTriangle, Loader2,
   Calculator, Activity as ActivityIcon, AlertCircle, TrendingDown,
   Settings, CheckSquare, Download, BarChart3, ChevronRight, FileSpreadsheet, Box,
-  Sparkles
+  Sparkles, ArrowLeft
 } from 'lucide-react';
 
 import { Project, RDOData, Team } from '../../types';
@@ -31,12 +31,14 @@ import { buildIdlenessFacts } from '../../src/analytics/engines/idlenessEngine';
 import { DimensionsUpload } from './DimensionsUpload';
 import { CompositionsUpload } from './CompositionsUpload';
 import { ResourcesMonthlyTable } from './ResourcesMonthlyTable';
+import { ResourcesMatrixTable } from './ResourcesMatrixTable';
 import { MeasurementTable } from './MeasurementTable';
 import { ProductivityTable } from './ProductivityTable';
 import { OccurrencesTable } from './OccurrencesTable';
 import { IdlenessTable } from './IdlenessTable';
 import { ValidationCenter, ValidationItem } from './ValidationCenter';
 import { ExecutiveAnalysisPanel } from './ExecutiveAnalysisPanel';
+import { DateRangePicker } from './DateRangePicker';
 
 // ---------------------------------------------------------------------------
 // Props Globais do App
@@ -46,7 +48,8 @@ export interface ContractIntelligencePageProps {
   teams: Team[];
   rdos: RDOData[];
   selectedProject: Project | null;
-  onSelectProject: (p: Project) => void;
+  onSelectProject: (p: Project | null) => void;
+  onNavigateToRDO?: (rdoId: string, teamId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,12 +101,16 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string | 
 // Componente Principal
 // ---------------------------------------------------------------------------
 export default function ContractIntelligencePage({
-  projects, teams, rdos, selectedProject, onSelectProject
+  projects, teams, rdos, selectedProject, onSelectProject, onNavigateToRDO
 }: ContractIntelligencePageProps) {
   
-  const [activeTab, setActiveTab] = useState<ActiveTab>('CONFIGURACAO');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('MEDICAO');
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Filtros Globais
+  const [globalDateRange, setGlobalDateRange] = useState<{start: string, end: string}>({ start: '', end: '' });
+  const [globalTeamFilter, setGlobalTeamFilter] = useState<string>('ALL');
 
   // Dimensões dinâmicas por projeto
   const [dimensions, setDimensions] = useState<DimensionImportResult | null>(null);
@@ -112,6 +119,9 @@ export default function ContractIntelligencePage({
   const [resourceFacts, setResourceFacts] = useState<MonthlyResourceFact[]>([]);
   const [measureFacts, setMeasureFacts] = useState<MeasurementFact[]>([]);
   const [prodFacts, setProdFacts] = useState<ProductivityFact[]>([]);
+  
+  // View mode state for Resources Tab
+  const [resourceViewMode, setResourceViewMode] = useState<'LIST' | 'MATRIX'>('MATRIX');
   const [occurrenceFacts, setOccurrenceFacts] = useState<OccurrenceFact[]>([]);
   const [idlenessFacts, setIdlenessFacts] = useState<IdlenessFact[]>([]);
   const [validationIssues, setValidationIssues] = useState<ValidationItem[]>([]);
@@ -234,31 +244,55 @@ export default function ContractIntelligencePage({
     runEngines();
   }, [runEngines]);
 
+  // Aplicação de filtros globais
+  const applyFilters = useCallback(<T extends { date: string, teamId?: string }>(facts: T[]) => {
+    return facts.filter(f => {
+      if (globalTeamFilter !== 'ALL') {
+        if (f.teamId && f.teamId !== globalTeamFilter) return false;
+      }
+      if (globalDateRange.start) {
+        const [d, m, y] = f.date.split('/');
+        const fDateStr = `${y}-${m}-${d}`;
+        if (globalDateRange.end) {
+          if (fDateStr < globalDateRange.start || fDateStr > globalDateRange.end) return false;
+        } else {
+          if (fDateStr !== globalDateRange.start) return false;
+        }
+      }
+      return true;
+    });
+  }, [globalDateRange, globalTeamFilter]);
+
+  const filteredMeasureFacts = useMemo(() => applyFilters(measureFacts), [measureFacts, applyFilters]);
+  const filteredOccurrenceFacts = useMemo(() => applyFilters(occurrenceFacts), [occurrenceFacts, applyFilters]);
+  const filteredIdlenessFacts = useMemo(() => applyFilters(idlenessFacts), [idlenessFacts, applyFilters]);
+  const filteredProdFacts = useMemo(() => applyFilters(prodFacts), [prodFacts, applyFilters]);
+
   // 3. KPIs Agregados (useMemo)
   const KPIs = useMemo(() => {
     let valorExecutado = 0;
     let custoTeorico = 0;
-    measureFacts.forEach(f => { valorExecutado += f.measuredValue; custoTeorico += f.theoreticalCost; });
+    filteredMeasureFacts.forEach(f => { valorExecutado += f.measuredValue; custoTeorico += f.theoreticalCost; });
     const margem = valorExecutado - custoTeorico;
 
     let horasImpactadas = 0;
     let pleitos = 0;
-    occurrenceFacts.forEach(f => { 
+    filteredOccurrenceFacts.forEach(f => { 
       horasImpactadas += f.impactHours; 
       if (f.eligibility === 'POTENCIAL_PLEITO') pleitos++; 
     });
 
-    const valorPleito = idlenessFacts.reduce((s, f) => s + f.totalValue, 0);
+    const valorPleito = filteredIdlenessFacts.reduce((s, f) => s + f.totalValue, 0);
 
     return { valorExecutado, custoTeorico, margem, horasImpactadas, pleitos, valorPleito };
-  }, [measureFacts, occurrenceFacts, idlenessFacts]);
+  }, [filteredMeasureFacts, filteredOccurrenceFacts, filteredIdlenessFacts]);
 
   // Cria o Summary Enxuto para a IA
   const compactSummaryForAI = useMemo<CompactSummary>(() => {
     
     // Group occurrences by category
     const occMap = new Map<string, { count: number; impactTimeMinutes: number }>();
-    occurrenceFacts.forEach(f => {
+    filteredOccurrenceFacts.forEach(f => {
       const current = occMap.get(f.category) || { count: 0, impactTimeMinutes: 0 };
       occMap.set(f.category, { 
         count: current.count + 1, 
@@ -271,7 +305,7 @@ export default function ContractIntelligencePage({
     }));
 
     // Productivity Top Issues
-    const productivityTopIssues = [...prodFacts]
+    const productivityTopIssues = [...filteredProdFacts]
       .filter(f => f.status === 'ABAIXO_COMPOSICAO')
       .sort((a, b) => a.adherence - b.adherence)
       .slice(0, 5)
@@ -293,14 +327,14 @@ export default function ContractIntelligencePage({
       theoreticalCost: KPIs.custoTeorico,
       absoluteMargin: KPIs.margem,
       marginPercent: KPIs.valorExecutado > 0 ? (KPIs.margem / KPIs.valorExecutado) : 0,
-      totalOccurrences: occurrenceFacts.length,
+      totalOccurrences: filteredOccurrenceFacts.length,
       impactedHours: KPIs.horasImpactadas,
       potentialClaimValue: KPIs.valorPleito,
       occurrencesByType,
       productivityTopIssues,
       validationWarnings
     };
-  }, [selectedProject, projectRdos, KPIs, occurrenceFacts, prodFacts, validationIssues]);
+  }, [selectedProject, projectRdos, KPIs, filteredOccurrenceFacts, filteredProdFacts, validationIssues]);
 
   // Se nenhum projeto for selecionado, exibir tela de seleção
   if (!selectedProject) {
@@ -347,17 +381,44 @@ export default function ContractIntelligencePage({
       {/* HEADER DA OBRA */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#60a5fa', fontSize: 13, fontWeight: 600, marginBottom: 4, cursor: 'pointer' }} onClick={() => onSelectProject(null as any)}>
+          <button 
+            onClick={() => onSelectProject(null)}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 13, fontWeight: 600, 
+              background: 'transparent', border: 'none', padding: 0, marginBottom: 12, cursor: 'pointer' 
+            }}
+          >
+            <ArrowLeft size={16} /> Voltar para Obras
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#60a5fa', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
             <Brain size={14} /> Contract Intelligence / {selectedProject.name}
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Dashboard Analítico Integrado</h1>
         </div>
-        <button onClick={runEngines} disabled={loadingState === 'loading'} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8,
-          background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer'
-        }}>
-          <RefreshCw size={16} style={loadingState === 'loading' ? { animation: 'spin 1s linear infinite' } : {}} /> Atualizar Fatos
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <DateRangePicker 
+            startDate={globalDateRange.start}
+            endDate={globalDateRange.end}
+            onChange={(start, end) => setGlobalDateRange({ start, end })}
+          />
+          <select
+            value={globalTeamFilter}
+            onChange={e => setGlobalTeamFilter(e.target.value)}
+            style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', minWidth: 150 }}
+          >
+            <option value="ALL">Todas as Turmas</option>
+            {teams.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+
+          <button onClick={runEngines} disabled={loadingState === 'loading'} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8,
+            background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer'
+          }}>
+            <RefreshCw size={16} style={loadingState === 'loading' ? { animation: 'spin 1s linear infinite' } : {}} /> Atualizar Fatos
+          </button>
+        </div>
       </div>
 
       {loadingState === 'error' && (
@@ -372,19 +433,18 @@ export default function ContractIntelligencePage({
         <KpiCard label="Valor Contratual Executado" value={formatBRL(KPIs.valorExecutado)} color="#4ade80" />
         <KpiCard label="Margem Absoluta" value={formatBRL(KPIs.margem)} color={KPIs.margem < 0 ? '#f87171' : '#fbbf24'} />
         <KpiCard label="Ocorrências" value={occurrenceFacts.length} color="#a78bfa" />
-        <KpiCard label="Improdutividade (Pleitos)" value={formatBRL(KPIs.valorPleito)} sub={`${KPIs.horasImpactadas}h perdidas`} color="#f43f5e" />
+        <KpiCard label="Improdutividade (Pleitos)" value={formatBRL(KPIs.valorPleito)} sub={`${formatNUM(KPIs.horasImpactadas)}h perdidas`} color="#f43f5e" />
       </div>
 
       {/* NAVEGAÇÃO EM ABAS */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid rgba(255,255,255,0.08)', overflowX: 'auto', paddingBottom: 4 }}>
         {[
-          { id: 'CONFIGURACAO', icon: Settings, label: 'Configuração' },
-          { id: 'VALIDACAO', icon: CheckSquare, label: `Validação (${validationIssues.length})` },
+          { id: 'MEDICAO', icon: Calculator, label: 'Serviços Executados' },
           { id: 'RECURSOS', icon: BarChart3, label: 'Recursos (Histograma)' },
-          { id: 'MEDICAO', icon: Calculator, label: 'Medição Contratual' },
-          { id: 'PRODUTIVIDADE', icon: ActivityIcon, label: 'Produtividade' },
           { id: 'OCORRENCIAS', icon: AlertCircle, label: 'Ocorrências' },
           { id: 'IMPRODUTIVIDADE', icon: TrendingDown, label: 'Improdutividade' },
+          { id: 'CONFIGURACAO', icon: Settings, label: 'Configuração' },
+          { id: 'VALIDACAO', icon: CheckSquare, label: `Validação (${validationIssues.length})` },
           { id: 'AI_ANALYSIS', icon: Sparkles, label: 'IA Executiva' },
           { id: 'EXPORTACOES', icon: Download, label: 'Exportações' },
         ].map(t => {
@@ -425,17 +485,44 @@ export default function ContractIntelligencePage({
           {activeTab === 'VALIDACAO' && <ValidationCenter issues={validationIssues} />}
           
           {activeTab === 'RECURSOS' && (
-             dimensions ? <ResourcesMonthlyTable facts={resourceFacts} /> : 
+             dimensions ? (
+               <div className="flex flex-col gap-4">
+                 <div className="flex gap-2 p-1 bg-slate-900/50 rounded-lg w-fit border border-white/5">
+                   <button
+                     onClick={() => setResourceViewMode('LIST')}
+                     className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                       resourceViewMode === 'LIST' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                     }`}
+                   >
+                     Tabela Linear
+                   </button>
+                   <button
+                     onClick={() => setResourceViewMode('MATRIX')}
+                     className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                       resourceViewMode === 'MATRIX' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                     }`}
+                   >
+                     Matriz de Planejamento (Pivot)
+                   </button>
+                 </div>
+                 {resourceViewMode === 'LIST' ? (
+                   <ResourcesMonthlyTable facts={resourceFacts} />
+                 ) : (
+                   <ResourcesMatrixTable facts={resourceFacts} />
+                 )}
+               </div>
+             ) : (
              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Importe as dimensões na aba Configuração para visualizar os Recursos.</div>
+             )
           )}
           
-          {activeTab === 'MEDICAO' && <MeasurementTable facts={measureFacts} projectName={selectedProject.name} />}
+          {activeTab === 'MEDICAO' && <MeasurementTable facts={filteredMeasureFacts} projectName={selectedProject.name} teams={teams} onNavigateToRDO={onNavigateToRDO} />}
           
-          {activeTab === 'PRODUTIVIDADE' && <ProductivityTable facts={prodFacts} projectName={selectedProject.name} />}
+          {activeTab === 'PRODUTIVIDADE' && <ProductivityTable facts={filteredProdFacts} projectName={selectedProject.name} />}
           
-          {activeTab === 'OCORRENCIAS' && <OccurrencesTable facts={occurrenceFacts} projectName={selectedProject.name} />}
+          {activeTab === 'OCORRENCIAS' && <OccurrencesTable facts={filteredOccurrenceFacts} projectName={selectedProject.name} teams={teams} onNavigateToRDO={onNavigateToRDO} />}
           
-          { activeTab === 'IMPRODUTIVIDADE' && <IdlenessTable facts={idlenessFacts} projectName={selectedProject.name} /> }
+          { activeTab === 'IMPRODUTIVIDADE' && <IdlenessTable facts={filteredIdlenessFacts} projectName={selectedProject.name} /> }
           
           { activeTab === 'AI_ANALYSIS' && <ExecutiveAnalysisPanel summary={compactSummaryForAI} /> }
           

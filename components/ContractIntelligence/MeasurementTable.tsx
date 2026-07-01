@@ -4,12 +4,15 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Search, Download, ChevronUp, ChevronDown, Info } from 'lucide-react';
+import { ChevronUp, ChevronDown, Info } from 'lucide-react';
 import { MeasurementFact, MeasurementStatus } from '../../src/analytics/types/analyticsTypes';
+import { Team } from '../../types';
 
 interface MeasurementTableProps {
   facts: MeasurementFact[];
   projectName?: string;
+  teams?: Team[];
+  onNavigateToRDO?: (rdoId: string, teamId: string) => void;
 }
 
 const STATUS_CONFIG: Record<MeasurementStatus, { label: string; color: string; bg: string }> = {
@@ -43,29 +46,12 @@ function DeviationCell({ value, isCurrency, isPercent }: { value: number; isCurr
   return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{label}</span>;
 }
 
-export function MeasurementTable({ facts, projectName }: MeasurementTableProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | MeasurementStatus>('ALL');
+export function MeasurementTable({ facts, projectName, teams = [], onNavigateToRDO }: MeasurementTableProps) {
   const [sortKey, setSortKey] = useState<keyof MeasurementFact>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const filtered = useMemo(() => {
-    return facts.filter(f => {
-      if (statusFilter !== 'ALL' && f.status !== statusFilter) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        return (
-          f.activityDescription.toLowerCase().includes(s) ||
-          f.activityCode.toLowerCase().includes(s) ||
-          f.date.includes(s)
-        );
-      }
-      return true;
-    });
-  }, [facts, search, statusFilter]);
-
   const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
+    return [...facts].sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
       if (typeof av === 'number' && typeof bv === 'number') {
@@ -75,15 +61,15 @@ export function MeasurementTable({ facts, projectName }: MeasurementTableProps) 
       const bs = String(bv ?? '');
       return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
     });
-  }, [filtered, sortKey, sortDir]);
+  }, [facts, sortKey, sortDir]);
 
   const summary = useMemo(() => {
-    const totalExec = filtered.reduce((s, f) => s + f.measuredValue, 0);
-    const totalCost = filtered.reduce((s, f) => s + f.theoreticalCost, 0);
+    const totalExec = facts.reduce((s, f) => s + f.measuredValue, 0);
+    const totalCost = facts.reduce((s, f) => s + f.theoreticalCost, 0);
     const margin = totalExec - totalCost;
     const marginPct = totalExec !== 0 ? margin / totalExec : 0;
     return { totalExec, totalCost, margin, marginPct };
-  }, [filtered]);
+  }, [facts]);
 
   const handleSort = (key: keyof MeasurementFact) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -103,27 +89,6 @@ export function MeasurementTable({ facts, projectName }: MeasurementTableProps) 
     verticalAlign: 'middle', whiteSpace: 'nowrap',
   };
 
-  const exportCsv = () => {
-    const header = '"Data";"Cód";"Atividade";"Qtd";"Unid";"Valor Unit.";"Valor Executado";"Custo Teórico";"Margem";"Margem %";"Status"';
-    const rows = sorted.map(f => [
-      f.date, f.activityCode, `"${f.activityDescription.replace(/"/g, '""')}"`,
-      String(f.quantity).replace('.', ','), f.unit,
-      String(f.unitPrice).replace('.', ','),
-      String(f.measuredValue).replace('.', ','),
-      String(f.theoreticalCost).replace('.', ','),
-      String(f.margin).replace('.', ','),
-      String(f.marginPercent).replace('.', ','),
-      STATUS_CONFIG[f.status].label
-    ].join(';'));
-    
-    const blob = new Blob(['\uFEFF' + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `medicao_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  };
-
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#e2e8f0' }}>
       <div style={{ marginBottom: 20 }}>
@@ -138,44 +103,16 @@ export function MeasurementTable({ facts, projectName }: MeasurementTableProps) 
         <KpiCard label="Margem %" value={PCT(summary.marginPct)} color={summary.margin >= 0 ? '#4ade80' : '#f87171'} />
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-          <input
-            type="text"
-            placeholder="Buscar atividade..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 32px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', boxSizing: 'border-box' }}
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as any)}
-          style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }}
-        >
-          <option value="ALL">Todos os status</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-            <option key={k} value={k}>{v.label}</option>
-          ))}
-        </select>
-        <button onClick={exportCsv} style={{ padding: '8px 16px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: 8, color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Download size={14} /> Exportar CSV
-        </button>
-      </div>
-
       <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: 'rgba(255,255,255,0.03)' }}>
             <tr>
               <th style={thStyle} onClick={() => handleSort('date')}>Data <SortIcon k="date" /></th>
               <th style={thStyle} onClick={() => handleSort('activityDescription')}>Atividade <SortIcon k="activityDescription" /></th>
+              <th style={thStyle}>Turma</th>
               <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('quantity')}>Qtd <SortIcon k="quantity" /></th>
               <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('measuredValue')}>Vlr Executado <SortIcon k="measuredValue" /></th>
-              <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('theoreticalCost')}>Custo Teórico <SortIcon k="theoreticalCost" /></th>
-              <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('margin')}>Margem <SortIcon k="margin" /></th>
-              <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('marginPercent')}>% <SortIcon k="marginPercent" /></th>
-              <th style={thStyle} onClick={() => handleSort('status')}>Status <SortIcon k="status" /></th>
+              <th style={{ ...thStyle, textAlign: 'center' }}>Ação</th>
             </tr>
           </thead>
           <tbody>
@@ -184,21 +121,29 @@ export function MeasurementTable({ facts, projectName }: MeasurementTableProps) 
               return (
                 <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
                   <td style={{ ...tdStyle, color: '#94a3b8' }}>{f.date}</td>
-                  <td style={{ ...tdStyle, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{f.activityCode}</div>
-                    <div style={{ color: '#94a3b8', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.activityDescription}</div>
+                  <td style={{ ...tdStyle, maxWidth: 350, whiteSpace: 'normal' }}>
+                    <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: 4, lineHeight: 1.3 }}>
+                      {f.activityCode && <span style={{ color: '#60a5fa', marginRight: 6 }}>{f.activityCode}</span>}
+                      {f.activityName || 'Serviço não identificado'}
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: 12, lineHeight: 1.3 }}>
+                      <span style={{ opacity: 0.7 }}>Relato RDO:</span> {f.activityDescription}
+                    </div>
+                  </td>
+                  <td style={{ ...tdStyle, color: '#94a3b8' }}>
+                    {teams.find(t => t.id === f.teamId)?.name || f.teamId}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
                     {NUM(f.quantity)} <span style={{ fontSize: 11, color: '#64748b' }}>{f.unit}</span>
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#60a5fa', fontVariantNumeric: 'tabular-nums' }}>{BRL(f.measuredValue)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{BRL(f.theoreticalCost)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}><DeviationCell value={f.margin} isCurrency /></td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}><DeviationCell value={f.marginPercent} isPercent /></td>
-                  <td style={tdStyle}>
-                    <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, background: st.bg, color: st.color, border: `1px solid ${st.color}44` }}>
-                      {st.label}
-                    </span>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <button 
+                      onClick={() => onNavigateToRDO && onNavigateToRDO(f.rdoId, f.teamId)}
+                      style={{ padding: '4px 12px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 6, color: '#60a5fa', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      Ir para RDO
+                    </button>
                   </td>
                 </tr>
               );

@@ -357,9 +357,15 @@ export interface MeasurementFact {
   projectId: string;
   /** Data da execução (do RDO) */
   date: string;
+  /** ID do RDO de origem */
+  rdoId: string;
+  /** ID da equipe que executou */
+  teamId: string;
   /** Código da atividade */
   activityCode: string;
-  /** Descrição da atividade */
+  /** Nome oficial do serviço (da composição ou tabela de preços) */
+  activityName?: string;
+  /** Descrição da atividade (relato do RDO) */
   activityDescription: string;
   /** Unidade de medida */
   unit: string;
@@ -400,6 +406,8 @@ export interface ProductivityFact {
   projectId: string;
   /** Data da execução (do RDO) */
   date: string;
+  /** ID da equipe que executou */
+  teamId: string;
   /** Código do serviço / atividade */
   activityCode: string;
   /** Descrição da atividade */
@@ -455,7 +463,9 @@ export type OccurrenceStatus =
  */
 export interface OccurrenceFact {
   projectId: string;
+  rdoId: string;
   date: string;
+  teamId: string;
   description: string;
   category: OccurrenceCategory;
   responsibility: OccurrenceResponsibility;
@@ -474,7 +484,9 @@ export interface OccurrenceFact {
  */
 export interface IdlenessFact {
   projectId: string;
+  rdoId: string;
   date: string;
+  teamId: string;
   occurrenceDescription: string;
   impactHours: number;
   workforceCount: number;

@@ -30,7 +30,6 @@ import { RDODetail } from './components/RDODetail';
 import { ProductionPriceTable } from './components/ProductionPriceTable';
 import ContractIntelligencePage from './components/ContractIntelligence/ContractIntelligencePage';
 import { formatMoney, parseDate, getServiceByCode, calculateRDOTotal, generateUUID } from './utils';
-import { MOCK_PROJECTS, MOCK_TEAMS, MOCK_RDOS } from './data/mockData';
 import * as db from './services/firestoreService';
 
 // --- Local Storage Keys ---
@@ -106,16 +105,11 @@ function App() {
              currentProjects = localProjects;
              currentTeams = localTeams;
              currentRdos = localRdos;
-          } else {
-             // If no local data, seed with Mock Data
-             console.log("Seeding Firestore with initial mock data...");
-             for (const p of MOCK_PROJECTS) await db.saveProject(p);
-             for (const t of MOCK_TEAMS) await db.saveTeam(t);
-             for (const r of MOCK_RDOS) await db.saveRdo(r);
-
-             currentProjects = MOCK_PROJECTS;
-             currentTeams = MOCK_TEAMS;
-             currentRdos = MOCK_RDOS;
+             // If no local data and no firestore data, initialize empty
+             console.log("No data found. Initializing empty state.");
+             currentProjects = [];
+             currentTeams = [];
+             currentRdos = [];
           }
           localStorage.setItem(STORAGE_PROJECT_SYNCED, 'true');
         }
@@ -1011,6 +1005,15 @@ function App() {
                 rdos={rdos}
                 selectedProject={selectedProject}
                 onSelectProject={setSelectedProject}
+                onNavigateToRDO={(rdoId, teamId) => {
+                  const rdo = rdos.find(r => r.id === rdoId);
+                  const team = teams.find(t => t.id === teamId);
+                  if (rdo && team && selectedProject) {
+                    setActiveMenu('PROJECTS');
+                    setSelectedTeam(team);
+                    setCurrentRDO(rdo);
+                  }
+                }}
               />
             )}
         </main>

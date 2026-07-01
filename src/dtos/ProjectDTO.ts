@@ -9,6 +9,10 @@ export interface ServiceItemDTO {
   scope?: string;
   unit?: string;
   value?: number;
+  startDate?: string;
+  endDate?: string;
+  DATA_INICIO?: string;
+  DATA_FIM?: string;
 }
 
 export interface ProjectDTO {

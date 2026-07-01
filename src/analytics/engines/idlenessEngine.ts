@@ -61,7 +61,9 @@ export function buildIdlenessFacts(params: BuildIdlenessFactsParams): { facts: I
 
     facts.push({
       projectId: occ.projectId,
+      rdoId: occ.rdoId,
       date: occ.date,
+      teamId: occ.teamId,
       occurrenceDescription: occ.description,
       impactHours: occ.impactHours,
       workforceCount,

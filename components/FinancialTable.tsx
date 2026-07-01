@@ -356,8 +356,8 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({
         let activePeriodStart = '';
         let activePeriodEnd = '';
 
+        let targetPeriods: any[] = [];
         if (cData && cData.monthlyEntries && cData.monthlyEntries.length > 0) {
-          let targetPeriods = [];
           if (filterMesName !== 'all') {
              targetPeriods = cData.monthlyEntries.filter(pe => pe.name === filterMesName);
           } else if (filterStartDate && filterEndDate) {
@@ -365,12 +365,7 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({
               pe.startDate <= filterEndDate && pe.endDate >= filterStartDate
             );
           } else {
-            const todayISO = new Date().toISOString().slice(0, 10);
-            let active = cData.monthlyEntries.find(pe => pe.startDate <= todayISO && pe.endDate >= todayISO);
-            if (!active) {
-              active = cData.monthlyEntries[cData.monthlyEntries.length - 1];
-            }
-            if (active) targetPeriods = [active];
+            targetPeriods = cData.monthlyEntries;
           }
           pBudget = targetPeriods.reduce((sum, pe) => sum + (pe.budget || 0), 0);
           pForecast = targetPeriods.reduce((sum, pe) => sum + (pe.forecast || 0), 0);
@@ -398,6 +393,16 @@ export const FinancialTable: React.FC<FinancialTableProps> = ({
 
         // Acumular por equipe
         proj.teams.forEach(t => {
+          t.budget = targetPeriods.reduce((sum, pe) => {
+            const alloc = pe.teamAllocations?.find(a => a.teamId === t.id);
+            return sum + (alloc?.budgetValue || 0);
+          }, 0);
+          
+          t.forecast = targetPeriods.reduce((sum, pe) => {
+            const alloc = pe.teamAllocations?.find(a => a.teamId === t.id);
+            return sum + (alloc?.forecastValue || 0);
+          }, 0);
+
           // Planejado mês = soma dentro do activePeriodStart/activePeriodEnd do projeto, se existir
           if (activePeriodStart && activePeriodEnd) {
              t.plannedMonth = sumPlansForTeamPeriod(dailyPlans, t.id, activePeriodStart, activePeriodEnd);

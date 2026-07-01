@@ -6,10 +6,13 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Download, ChevronUp, ChevronDown } from 'lucide-react';
 import { OccurrenceFact, OccurrenceEligibility, OccurrenceCategory } from '../../src/analytics/types/analyticsTypes';
+import { Team } from '../../types';
 
 interface OccurrencesTableProps {
   facts: OccurrenceFact[];
   projectName?: string;
+  teams?: Team[];
+  onNavigateToRDO?: (rdoId: string, teamId: string) => void;
 }
 
 const ELIGIBILITY_CONFIG: Record<OccurrenceEligibility, { label: string; color: string; bg: string }> = {
@@ -43,8 +46,7 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
   );
 }
 
-export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) {
-  const [search, setSearch] = useState('');
+export function OccurrencesTable({ facts, projectName, teams = [], onNavigateToRDO }: OccurrencesTableProps) {
   const [eligibilityFilter, setEligibilityFilter] = useState<'ALL' | OccurrenceEligibility>('ALL');
   const [sortKey, setSortKey] = useState<keyof OccurrenceFact>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -52,16 +54,9 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
   const filtered = useMemo(() => {
     return facts.filter(f => {
       if (eligibilityFilter !== 'ALL' && f.eligibility !== eligibilityFilter) return false;
-      if (search) {
-        const s = search.toLowerCase();
-        return (
-          f.description.toLowerCase().includes(s) ||
-          f.date.includes(s)
-        );
-      }
       return true;
     });
-  }, [facts, search, eligibilityFilter]);
+  }, [facts, eligibilityFilter]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -102,26 +97,6 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
     verticalAlign: 'middle'
   };
 
-  const exportCsv = () => {
-    const header = '"Data";"Ocorrência";"Categoria";"Responsabilidade";"Elegibilidade";"Horas Impactadas";"Status"';
-    const rows = sorted.map(f => [
-      f.date,
-      `"${f.description.replace(/"/g, '""')}"`,
-      CATEGORY_CONFIG[f.category],
-      f.responsibility,
-      ELIGIBILITY_CONFIG[f.eligibility].label,
-      String(f.impactHours).replace('.', ','),
-      f.status === 'SEM_DURACAO_EXPLICITA' ? 'Sem Duração' : 'Duração Informada'
-    ].join(';'));
-    
-    const blob = new Blob(['\uFEFF' + [header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ocorrencias_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  };
-
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#e2e8f0' }}>
       <div style={{ marginBottom: 20 }}>
@@ -137,16 +112,6 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-          <input
-            type="text"
-            placeholder="Buscar descrição..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 32px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', boxSizing: 'border-box' }}
-          />
-        </div>
         <select
           value={eligibilityFilter}
           onChange={e => setEligibilityFilter(e.target.value as any)}
@@ -157,9 +122,6 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
             <option key={k} value={k}>{v.label}</option>
           ))}
         </select>
-        <button onClick={exportCsv} style={{ padding: '8px 16px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: 8, color: '#60a5fa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Download size={14} /> Exportar CSV
-        </button>
       </div>
 
       <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -169,8 +131,10 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
               <th style={thStyle} onClick={() => handleSort('date')}>Data <SortIcon k="date" /></th>
               <th style={thStyle} onClick={() => handleSort('description')}>Descrição <SortIcon k="description" /></th>
               <th style={thStyle} onClick={() => handleSort('category')}>Categoria <SortIcon k="category" /></th>
+              <th style={thStyle}>Turma</th>
               <th style={{ ...thStyle, textAlign: 'right' }} onClick={() => handleSort('impactHours')}>Impacto (h) <SortIcon k="impactHours" /></th>
               <th style={thStyle} onClick={() => handleSort('eligibility')}>Elegibilidade <SortIcon k="eligibility" /></th>
+              <th style={{ ...thStyle, textAlign: 'center' }}>Ação</th>
             </tr>
           </thead>
           <tbody>
@@ -179,8 +143,9 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
               return (
                 <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
                   <td style={{ ...tdStyle, color: '#94a3b8', whiteSpace: 'nowrap' }}>{f.date}</td>
-                  <td style={{ ...tdStyle, color: '#e2e8f0', maxWidth: 400 }}>{f.description}</td>
-                  <td style={{ ...tdStyle, color: '#cbd5e1', whiteSpace: 'nowrap' }}>{CATEGORY_CONFIG[f.category]}</td>
+                  <td style={{ ...tdStyle, color: '#e2e8f0', maxWidth: 200, whiteSpace: 'normal' }}>{f.description}</td>
+                  <td style={{ ...tdStyle, color: '#cbd5e1', maxWidth: 120, whiteSpace: 'normal' }}>{CATEGORY_CONFIG[f.category]}</td>
+                  <td style={{ ...tdStyle, color: '#94a3b8' }}>{teams.find(t => t.id === f.teamId)?.name || f.teamId}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: f.impactHours > 0 ? '#fbbf24' : '#64748b' }}>
                     {f.status === 'SEM_DURACAO_EXPLICITA' ? '—' : NUM(f.impactHours)}
                   </td>
@@ -189,12 +154,20 @@ export function OccurrencesTable({ facts, projectName }: OccurrencesTableProps) 
                       {st.label}
                     </span>
                   </td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <button 
+                      onClick={() => onNavigateToRDO && onNavigateToRDO(f.rdoId, f.teamId)}
+                      style={{ padding: '4px 12px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 6, color: '#60a5fa', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      Ir para RDO
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Nenhum registro encontrado.</td>
+                <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Nenhum registro encontrado.</td>
               </tr>
             )}
           </tbody>

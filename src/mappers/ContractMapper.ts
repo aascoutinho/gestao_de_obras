@@ -35,7 +35,9 @@ export class ContractMapper {
       const teamAllocations = rawAllocations.map(a => ({
         teamId: normalizeIdentifier(a.teamId),
         budgetPct: normalizePercentage(a.budgetPct),
-        forecastPct: normalizePercentage(a.forecastPct)
+        forecastPct: normalizePercentage(a.forecastPct),
+        budgetValue: (a as any).budgetValue,
+        forecastValue: (a as any).forecastValue
       })).filter(a => a.teamId !== '');
 
       return {
@@ -107,7 +109,13 @@ export class ContractMapper {
       provisao: e.forecast,
       measured: e.measured,
       medido: e.measured,
-      teamAllocations: e.teamAllocations
+      teamAllocations: e.teamAllocations?.map(a => ({
+        teamId: a.teamId,
+        budgetPct: a.budgetPct,
+        forecastPct: a.forecastPct,
+        budgetValue: a.budgetValue,
+        forecastValue: a.forecastValue
+      }))
     }));
 
     const aditivos: ContractAddendumDTO[] = domain.addenda.map(a => ({

@@ -46,9 +46,19 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
     let runningBalance = totalValue;
     let runningRealAcc = 0;
     let runningProjAcc = measuredAcc;
+    let runningBudgetAcc = 0;
+    let runningForecastAcc = 0;
+    let runningOrcamentoAcc = 0;
+    const orcamentoPorMes = entries.length > 0 ? totalValue / entries.length : 0;
     
     const data = entries.map((entry, index) => {
       const measured = entry.measured || 0;
+      const budget = entry.budget || 0;
+      const forecast = entry.forecast || 0;
+      
+      runningBudgetAcc += budget;
+      runningForecastAcc += forecast;
+      runningOrcamentoAcc += orcamentoPorMes;
       
       let realAcc: number | null = null;
       let projAcc: number | null = null;
@@ -79,7 +89,10 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
         medProj,
         saldo: barSaldo,
         realAcc,
-        projAcc
+        projAcc,
+        budgetAcc: runningBudgetAcc,
+        forecastAcc: runningForecastAcc,
+        orcamentoAcc: runningOrcamentoAcc
       };
     });
     
@@ -176,6 +189,7 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
                 tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                 tickLine={false}
                 axisLine={{ stroke: '#ffffff10' }}
+                domain={[0, 'auto']}
               />
               <YAxis 
                 yAxisId="right"
@@ -185,6 +199,7 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
                 tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                 tickLine={false}
                 axisLine={{ stroke: '#ffffff10' }}
+                domain={[0, 'auto']}
               />
               <RechartsTooltip content={customTooltip} />
               <Legend wrapperStyle={{ paddingTop: '20px' }} />
@@ -221,7 +236,7 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
                 yAxisId="left"
                 dataKey="medProj" 
                 name="Medição Necessária" 
-                fill="#10b981" 
+                fill="#ef4444" 
                 opacity={0.4}
                 stackId="med"
                 radius={[4, 4, 0, 0]} 
@@ -234,9 +249,9 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
                 dataKey="realAcc" 
                 name="Acumulado Real" 
                 stroke="#3b82f6" 
-                strokeWidth={3}
-                dot={{ r: 4, fill: '#0f172a', stroke: '#3b82f6', strokeWidth: 2 }}
-                activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+                strokeWidth={1.5}
+                dot={{ r: 3, fill: '#0f172a', stroke: '#3b82f6', strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 1.5 }}
               />
 
               <Line 
@@ -244,11 +259,94 @@ export const ContractAnalysisTab: React.FC<ContractAnalysisTabProps> = ({ projec
                 type="monotone" 
                 dataKey="projAcc" 
                 name="Acumulado Projetado" 
-                stroke="#3b82f6" 
-                strokeWidth={3}
+                stroke="#ef4444" 
+                strokeWidth={1.5}
                 strokeDasharray="6 6"
-                dot={{ r: 4, fill: '#0f172a', stroke: '#3b82f6', strokeWidth: 2 }}
-                activeDot={{ r: 6, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+                dot={{ r: 3, fill: '#0f172a', stroke: '#ef4444', strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: '#ef4444', stroke: '#fff', strokeWidth: 1.5 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-3xl border border-white/5 p-6 shadow-2xl shadow-blue-900/10">
+        <h3 className="text-white font-bold text-lg mb-6 flex items-center gap-2">
+          Curva S do Contrato
+        </h3>
+        <div className="w-full h-[350px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+              <XAxis 
+                dataKey="month" 
+                stroke="#64748b" 
+                tick={{ fill: '#94a3b8', fontSize: 12 }} 
+                tickLine={false} 
+                axisLine={{ stroke: '#ffffff10' }} 
+              />
+              <YAxis 
+                yAxisId="left"
+                stroke="#64748b" 
+                tick={{ fill: '#94a3b8', fontSize: 12 }}
+                tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                tickLine={false}
+                axisLine={{ stroke: '#ffffff10' }}
+              />
+              <YAxis 
+                yAxisId="right"
+                orientation="right"
+                stroke="#64748b" 
+                tick={{ fill: '#94a3b8', fontSize: 12 }}
+                tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                tickLine={false}
+                axisLine={{ stroke: '#ffffff10' }}
+              />
+              <RechartsTooltip content={customTooltip} />
+              <Legend wrapperStyle={{ paddingTop: '20px' }} />
+
+              <Line 
+                yAxisId="left"
+                type="monotone" 
+                dataKey="orcamentoAcc" 
+                name="Orçamento (Linear)" 
+                stroke="#ffffff" 
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={false}
+              />
+
+              <Line 
+                yAxisId="left"
+                type="monotone" 
+                dataKey="budgetAcc" 
+                name="Budget (Planejado)" 
+                stroke="#a855f7" 
+                strokeWidth={1.5}
+                dot={{ r: 3, fill: '#0f172a', stroke: '#a855f7', strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: '#a855f7', stroke: '#fff', strokeWidth: 1.5 }}
+              />
+
+              <Line 
+                yAxisId="left"
+                type="monotone" 
+                dataKey="forecastAcc" 
+                name="Forecast" 
+                stroke="#f97316" 
+                strokeWidth={1.5}
+                dot={{ r: 3, fill: '#0f172a', stroke: '#f97316', strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: '#f97316', stroke: '#fff', strokeWidth: 1.5 }}
+              />
+
+              <Line 
+                yAxisId="left"
+                type="monotone" 
+                dataKey="realAcc" 
+                name="Realizado" 
+                stroke="#3b82f6" 
+                strokeWidth={1.5}
+                dot={{ r: 3, fill: '#0f172a', stroke: '#3b82f6', strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 1.5 }}
               />
             </ComposedChart>
           </ResponsiveContainer>

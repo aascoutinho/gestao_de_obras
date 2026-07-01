@@ -98,7 +98,7 @@ function KpiCard({ label, value, color, sub }: { label: string; value: string; c
       border: '1px solid rgba(255,255,255,0.07)',
       borderRadius: 12, padding: '12px 16px', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
       <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{label}</div>
       {sub && <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{sub}</div>}
     </div>

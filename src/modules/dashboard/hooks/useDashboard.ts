@@ -116,24 +116,25 @@ export const useDashboard = () => {
         const timeDiff = latestDate.getTime() - start.getTime();
         daysPassed = Math.max(1, Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1);
         daysRemaining = Math.max(0, totalDaysInRange - daysPassed);
-      } else {
+      } else if (filterMes !== 'all') {
+        periodLabel = filterMes;
         const currentMonth = latestDate.getMonth();
         const currentYear = latestDate.getFullYear();
-        periodLabel = latestDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
         daysPassed = latestDate.getDate();
         const lastDayOfObj = new Date(currentYear, currentMonth + 1, 0);
         daysRemaining = lastDayOfObj.getDate() - daysPassed;
-
-        if (!filterStartDate && !filterEndDate) {
-          const monthRdos = filteredRdos.filter(r => {
-            const d = parseDate(r.date);
-            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-          });
-          totalRevenueRealized = monthRdos.reduce((acc, r) => {
-            const team = teams.find(t => t.id === r.teamId);
-            const project = team ? projects.find(p => p.id === team.projectId) : undefined;
-            return acc + calculateRDOTotal(r, project);
-          }, 0);
+      } else {
+        periodLabel = 'Todo o Período';
+        // When no filter is applied, do not restrict totalRevenueRealized to a single month
+        // totalRevenueRealized is already the sum of all filteredRdos (calculated on line 101)
+        
+        // Calculate daysPassed as the difference between the earliest RDO and the latest RDO
+        if (filteredRdos.length > 0) {
+           const sortedRdos = [...filteredRdos].sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime());
+           const earliestDate = parseDate(sortedRdos[0].date);
+           daysPassed = Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 3600 * 24)) + 1;
+        } else {
+           daysPassed = 1;
         }
       }
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Project, ServiceItem } from '../../types';
 import { FirestoreProjectRepository } from '../repositories/FirestoreProjectRepository';
-import { generateUUID } from '../../utils';
+import { generateUUID, parseExcelDate } from '../../utils';
 import { read, utils } from 'xlsx';
 
 const projectRepo = new FirestoreProjectRepository();
@@ -79,12 +79,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = utils.sheet_to_json(worksheet, { header: 1 });
 
-      const services: ServiceItem[] = [];
+      const newServices: ServiceItem[] = [];
 
       jsonData.forEach((row: any) => {
         if (row.length >= 4) {
           const code = String(row[0]);
-          if (code && !['código', 'code', 'item'].includes(code.toLowerCase())) {
+          if (code && !['código', 'code', 'item', 'cód. item'].includes(code.toLowerCase())) {
             const val = row[3];
             let numVal = 0;
             if (typeof val === 'number') numVal = val;
@@ -92,13 +92,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
               numVal = parseFloat(val.replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
             }
 
-            services.push({
+            // A utility function to parse the Excel date to string
+            const parsedStartDate = row[4] ? parseExcelDate(row[4]) : undefined;
+            const parsedEndDate = row[5] ? parseExcelDate(row[5]) : undefined;
+
+            newServices.push({
               code: code,
               scope: String(row[1]),
               unit: String(row[2]),
-              value: numVal || 0
+              value: numVal || 0,
+              startDate: parsedStartDate,
+              endDate: parsedEndDate
             });
           }
+        }
+      });
+
+      // Merge new services with existing ones.
+      // If a service with same code, startDate and endDate exists, overwrite it.
+      // Otherwise, keep both.
+      let existingServices = selected.services || [];
+      const services = [...existingServices];
+
+      newServices.forEach(newS => {
+        const index = services.findIndex(s => s.code === newS.code && s.startDate === newS.startDate && s.endDate === newS.endDate);
+        if (index >= 0) {
+          services[index] = newS;
+        } else {
+          services.push(newS);
         }
       });
 
