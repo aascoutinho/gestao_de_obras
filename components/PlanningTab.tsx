@@ -247,9 +247,9 @@ export const PlanningTab: React.FC<PlanningTabProps> = ({
           onChange={e => { setSelectedProjectId(e.target.value); setEdits(new Map()); }}
           className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500/50 outline-none appearance-none cursor-pointer transition-all"
         >
-          {projects.length === 0 && <option value="">Nenhuma obra cadastrada</option>}
+          {projects.length === 0 && <option value="" className="bg-slate-900 text-white">Nenhuma obra cadastrada</option>}
           {projects.map(p => (
-            <option key={p.id} value={p.id} className="bg-slate-900">{p.name}</option>
+            <option key={p.id} value={p.id} className="bg-slate-900 text-white">{p.name}</option>
           ))}
         </select>
       </div>
