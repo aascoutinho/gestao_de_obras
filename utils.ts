@@ -37,7 +37,13 @@ export const parseExcelDate = (val: any): string | undefined => {
 };
 
 export const isDateInRange = (dateToCheck: string, startDate?: string, endDate?: string): boolean => {
-  const date = dateToCheck; // assumed to be YYYY-MM-DD
+  let date = dateToCheck;
+  if (date.includes('/')) {
+    const parts = date.split('/');
+    if (parts.length === 3) {
+      date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+  }
   if (startDate && date < startDate) return false;
   if (endDate && date > endDate) return false;
   return true;
