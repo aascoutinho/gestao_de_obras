@@ -485,7 +485,7 @@ export const RDOEditForm: React.FC<RDOEditFormProps> = ({
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-2">
                       <label className={labelClass}>Descrição</label>
                       <textarea 
                         rows={2}
@@ -493,6 +493,16 @@ export const RDOEditForm: React.FC<RDOEditFormProps> = ({
                         onChange={e => updateOccurrence(idx, 'description', e.target.value)}
                         className={inputClass}
                         placeholder="Descreva o ocorrido..."
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Categoria</label>
+                      <input 
+                        type="text" 
+                        value={occ.category || ''} 
+                        onChange={e => updateOccurrence(idx, 'category', e.target.value)}
+                        className={inputClass}
+                        placeholder="Ex: Falta de Material"
                       />
                     </div>
                     <div>

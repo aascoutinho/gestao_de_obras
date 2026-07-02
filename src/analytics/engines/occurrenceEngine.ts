@@ -81,7 +81,8 @@ export function buildOccurrenceFacts(params: BuildOccurrenceFactsParams): { fact
     if (rdo.projectId && rdo.projectId !== projectId) continue;
 
     const occurrences = rdo.occurrences || [];
-    for (const occ of occurrences) {
+    for (let i = 0; i < occurrences.length; i++) {
+      const occ = occurrences[i];
       const minutes = occ.impactTimeMinutes || 0;
       const hours = minutes / 60;
       const classification = classifyOccurrence(occ.description);
@@ -90,10 +91,11 @@ export function buildOccurrenceFacts(params: BuildOccurrenceFactsParams): { fact
       facts.push({
         projectId,
         rdoId: rdo.id,
+        occurrenceIndex: i,
         date: rdo.date,
         teamId: rdo.teamId,
         description: occ.description,
-        category: classification.category,
+        category: occ.category || '',
         responsibility: classification.responsibility,
         eligibility: classification.eligibility,
         impactMinutes: minutes,

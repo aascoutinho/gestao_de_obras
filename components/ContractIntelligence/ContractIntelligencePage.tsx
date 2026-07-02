@@ -39,6 +39,7 @@ import { IdlenessTable } from './IdlenessTable';
 import { ValidationCenter, ValidationItem } from './ValidationCenter';
 import { ExecutiveAnalysisPanel } from './ExecutiveAnalysisPanel';
 import { DateRangePicker } from './DateRangePicker';
+import { useRdoActions } from '../../src/stores/rdoStore';
 
 // ---------------------------------------------------------------------------
 // Props Globais do App
@@ -107,6 +108,18 @@ export default function ContractIntelligencePage({
   const [activeTab, setActiveTab] = useState<ActiveTab>('MEDICAO');
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  
+  const rdoActions = useRdoActions();
+
+  const handleCategoryChange = useCallback(async (rdoId: string, occurrenceIndex: number, newCategory: string) => {
+    const rdoToUpdate = rdos.find(r => r.id === rdoId);
+    if (!rdoToUpdate) return;
+    const updatedRdo = JSON.parse(JSON.stringify(rdoToUpdate));
+    if (updatedRdo.occurrences && updatedRdo.occurrences[occurrenceIndex]) {
+      updatedRdo.occurrences[occurrenceIndex].category = newCategory;
+      await rdoActions.saveRdo(updatedRdo);
+    }
+  }, [rdos, rdoActions]);
 
   // Filtros Globais
   const [globalDateRange, setGlobalDateRange] = useState<{start: string, end: string}>({ start: '', end: '' });

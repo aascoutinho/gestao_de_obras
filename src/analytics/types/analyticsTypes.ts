@@ -434,13 +434,7 @@ export interface ProductivityFact {
 // 11. OccurrenceFact
 // ---------------------------------------------------------------------------
 
-export type OccurrenceCategory =
-  | 'CIRCULACAO_TRENS'
-  | 'FALTA_MAO_OBRA'
-  | 'EQUIPAMENTO_FERRAMENTA'
-  | 'CLIMA'
-  | 'CALENDARIO'
-  | 'OUTRA';
+export type OccurrenceCategory = string;
 
 export type OccurrenceResponsibility =
   | 'CONTRATANTE_OPERACAO'
@@ -464,6 +458,7 @@ export type OccurrenceStatus =
 export interface OccurrenceFact {
   projectId: string;
   rdoId: string;
+  occurrenceIndex: number;
   date: string;
   teamId: string;
   description: string;

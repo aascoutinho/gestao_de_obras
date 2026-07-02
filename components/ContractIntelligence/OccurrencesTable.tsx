@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Search, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { OccurrenceFact, OccurrenceEligibility, OccurrenceCategory } from '../../src/analytics/types/analyticsTypes';
 import { Team } from '../../types';
 
@@ -13,6 +14,7 @@ interface OccurrencesTableProps {
   projectName?: string;
   teams?: Team[];
   onNavigateToRDO?: (rdoId: string, teamId: string) => void;
+  onCategoryChange?: (rdoId: string, occurrenceIndex: number, newCategory: string) => void;
 }
 
 const ELIGIBILITY_CONFIG: Record<OccurrenceEligibility, { label: string; color: string; bg: string }> = {
@@ -46,7 +48,7 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
   );
 }
 
-export function OccurrencesTable({ facts, projectName, teams = [], onNavigateToRDO }: OccurrencesTableProps) {
+export function OccurrencesTable({ facts, projectName, teams = [], onNavigateToRDO, onCategoryChange }: OccurrencesTableProps) {
   const [eligibilityFilter, setEligibilityFilter] = useState<'ALL' | OccurrenceEligibility>('ALL');
   const [sortKey, setSortKey] = useState<keyof OccurrenceFact>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -97,11 +99,37 @@ export function OccurrencesTable({ facts, projectName, teams = [], onNavigateToR
     verticalAlign: 'middle'
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = sorted.map(f => ({
+      Data: f.date,
+      Descrição: f.description,
+      Categoria: f.category || 'Não categorizada',
+      Turma: teams.find(t => t.id === f.teamId)?.name || f.teamId,
+      'Impacto (h)': f.status === 'SEM_DURACAO_EXPLICITA' ? '—' : f.impactHours,
+      Elegibilidade: ELIGIBILITY_CONFIG[f.eligibility]?.label || f.eligibility
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ocorrências");
+    XLSX.writeFile(wb, `Ocorrencias_${projectName || 'Projeto'}.xlsx`);
+  };
+
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#e2e8f0' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Classificação de Ocorrências</h2>
-        {projectName && <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: 13 }}>Projeto: <strong>{projectName}</strong></p>}
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Classificação de Ocorrências</h2>
+          {projectName && <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: 13 }}>Projeto: <strong>{projectName}</strong></p>}
+        </div>
+        <button 
+          onClick={handleExportExcel}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}
+          onMouseOver={e => e.currentTarget.style.background = '#059669'}
+          onMouseOut={e => e.currentTarget.style.background = '#10b981'}
+        >
+          <Download size={16} /> Exportar Excel
+        </button>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
@@ -144,7 +172,28 @@ export function OccurrencesTable({ facts, projectName, teams = [], onNavigateToR
                 <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
                   <td style={{ ...tdStyle, color: '#94a3b8', whiteSpace: 'nowrap' }}>{f.date}</td>
                   <td style={{ ...tdStyle, color: '#e2e8f0', maxWidth: 200, whiteSpace: 'normal' }}>{f.description}</td>
-                  <td style={{ ...tdStyle, color: '#cbd5e1', maxWidth: 120, whiteSpace: 'normal' }}>{CATEGORY_CONFIG[f.category]}</td>
+                  <td style={{ ...tdStyle, color: '#cbd5e1', maxWidth: 160, whiteSpace: 'normal' }}>
+                    <input 
+                      type="text" 
+                      defaultValue={f.category || ''} 
+                      placeholder="Ex: Falta de Material"
+                      onBlur={(e) => {
+                         if (e.target.value !== f.category && onCategoryChange) {
+                           onCategoryChange(f.rdoId, f.occurrenceIndex, e.target.value);
+                         }
+                      }}
+                      onKeyDown={(e) => {
+                         if (e.key === 'Enter') {
+                           e.currentTarget.blur();
+                         }
+                      }}
+                      style={{
+                         width: '100%', padding: '6px 8px', borderRadius: '6px',
+                         background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                         color: '#fff', fontSize: '13px'
+                      }}
+                    />
+                  </td>
                   <td style={{ ...tdStyle, color: '#94a3b8' }}>{teams.find(t => t.id === f.teamId)?.name || f.teamId}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: f.impactHours > 0 ? '#fbbf24' : '#64748b' }}>
                     {f.status === 'SEM_DURACAO_EXPLICITA' ? '—' : NUM(f.impactHours)}

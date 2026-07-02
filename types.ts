@@ -120,6 +120,7 @@ export interface Activity {
 
 export interface Occurrence {
   type?: string;
+  category?: string;
   description: string;
   impact?: 'LOW' | 'MEDIUM' | 'HIGH';
   impactTimeMinutes?: number;
